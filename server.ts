@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db";
+import { getSupabaseStatus, SQL_SETUP_SCRIPT } from "./server/supabase";
 import { User, Food, Order, OrderStatus } from "./src/types";
 
 // Extend Express Request interface to include user info
@@ -129,7 +130,7 @@ async function startServer() {
         return;
       }
 
-      const existingUser = dbService.getUserByEmail(email);
+      const existingUser = await dbService.getUserByEmail(email);
       if (existingUser) {
         res.status(400).json({ error: "Email already registered." });
         return;
@@ -157,7 +158,7 @@ async function startServer() {
         createdAt: new Date().toISOString()
       };
 
-      dbService.createUser(newUser, hashedPassword);
+      await dbService.createUser(newUser, hashedPassword);
 
       // Create JWT
       const token = jwt.sign(
@@ -190,13 +191,13 @@ async function startServer() {
         return;
       }
 
-      const user = dbService.getUserByEmail(email);
+      const user = await dbService.getUserByEmail(email);
       if (!user) {
         res.status(401).json({ error: "Invalid email or password." });
         return;
       }
 
-      const passwordHash = dbService.getUserPassword(user.id);
+      const passwordHash = await dbService.getUserPassword(user.id);
       if (!passwordHash) {
         res.status(401).json({ error: "Invalid credentials." });
         return;
@@ -239,8 +240,8 @@ async function startServer() {
   });
 
   // GET /api/auth/profile
-  app.get("/api/auth/profile", requireAuth, (req: Request, res: Response) => {
-    const user = dbService.getUserById(req.user!.id);
+  app.get("/api/auth/profile", requireAuth, async (req: Request, res: Response) => {
+    const user = await dbService.getUserById(req.user!.id);
     if (!user) {
       res.status(404).json({ error: "User not found." });
       return;
@@ -252,14 +253,14 @@ async function startServer() {
   // ==================== FOODS ENDPOINTS ====================
 
   // GET /api/foods
-  app.get("/api/foods", (req: Request, res: Response) => {
-    const foods = dbService.getFoods();
+  app.get("/api/foods", async (req: Request, res: Response) => {
+    const foods = await dbService.getFoods();
     res.json(foods);
   });
 
   // GET /api/foods/:id
-  app.get("/api/foods/:id", (req: Request, res: Response) => {
-    const food = dbService.getFoodById(req.params.id);
+  app.get("/api/foods/:id", async (req: Request, res: Response) => {
+    const food = await dbService.getFoodById(req.params.id);
     if (!food) {
       res.status(404).json({ error: "Food item not found." });
       return;
@@ -268,7 +269,7 @@ async function startServer() {
   });
 
   // POST /api/foods (Admin only)
-  app.post("/api/foods", requireAuth, requireAdmin, (req: Request, res: Response) => {
+  app.post("/api/foods", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const { name, description, price, category, image, available, rating } = req.body;
 
@@ -284,7 +285,7 @@ async function startServer() {
         finalImage = `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800`;
       }
 
-      const newFood = dbService.createFood({
+      const newFood = await dbService.createFood({
         name,
         description,
         price: Number(price),
@@ -302,7 +303,7 @@ async function startServer() {
   });
 
   // PUT /api/foods/:id (Admin only)
-  app.put("/api/foods/:id", requireAuth, requireAdmin, (req: Request, res: Response) => {
+  app.put("/api/foods/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const { name, description, price, category, image, available, rating } = req.body;
       const updates: Partial<Omit<Food, "id" | "createdAt">> = {};
@@ -315,7 +316,7 @@ async function startServer() {
       if (available !== undefined) updates.available = Boolean(available);
       if (rating !== undefined) updates.rating = Number(rating);
 
-      const updatedFood = dbService.updateFood(req.params.id, updates);
+      const updatedFood = await dbService.updateFood(req.params.id, updates);
       if (!updatedFood) {
         res.status(404).json({ error: "Food item not found." });
         return;
@@ -329,8 +330,8 @@ async function startServer() {
   });
 
   // DELETE /api/foods/:id (Admin only)
-  app.delete("/api/foods/:id", requireAuth, requireAdmin, (req: Request, res: Response) => {
-    const success = dbService.deleteFood(req.params.id);
+  app.delete("/api/foods/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    const success = await dbService.deleteFood(req.params.id);
     if (!success) {
       res.status(404).json({ error: "Food item not found." });
       return;
@@ -342,7 +343,7 @@ async function startServer() {
   // ==================== ORDERS ENDPOINTS ====================
 
   // POST /api/orders (Client places order)
-  app.post("/api/orders", requireAuth, (req: Request, res: Response) => {
+  app.post("/api/orders", requireAuth, async (req: Request, res: Response) => {
     try {
       const { foodItems, deliveryAddress, phone } = req.body;
 
@@ -356,7 +357,7 @@ async function startServer() {
         return;
       }
 
-      const user = dbService.getUserById(req.user!.id);
+      const user = await dbService.getUserById(req.user!.id);
       if (!user) {
         res.status(404).json({ error: "Logged in user not found." });
         return;
@@ -367,7 +368,7 @@ async function startServer() {
       const verifiedItems = [];
 
       for (const item of foodItems) {
-        const food = dbService.getFoodById(item.foodId);
+        const food = await dbService.getFoodById(item.foodId);
         if (!food) {
           res.status(400).json({ error: `Food item with ID ${item.foodId} not found.` });
           return;
@@ -395,7 +396,7 @@ async function startServer() {
         });
       }
 
-      const newOrder = dbService.createOrder({
+      const newOrder = await dbService.createOrder({
         userId: user.id,
         userName: user.name,
         userEmail: user.email,
@@ -404,7 +405,7 @@ async function startServer() {
         totalPrice: Number(totalPrice.toFixed(2)),
         deliveryAddress,
         phone,
-        paymentStatus: "Pending", // Cash on delivery or payment service placeholder
+        paymentStatus: req.body.paymentStatus || "Pending",
         orderStatus: "Pending"
       });
 
@@ -420,22 +421,22 @@ async function startServer() {
 
   // GET /api/orders (Returns list of orders)
   // Admin gets ALL orders; standard users get ONLY their own orders
-  app.get("/api/orders", requireAuth, (req: Request, res: Response) => {
+  app.get("/api/orders", requireAuth, async (req: Request, res: Response) => {
     if (req.user!.role === "Admin") {
-      const allOrders = dbService.getOrders();
+      const allOrders = await dbService.getOrders();
       // Sort newest first
       allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       res.json(allOrders);
     } else {
-      const userOrders = dbService.getOrdersByUser(req.user!.id);
+      const userOrders = await dbService.getOrdersByUser(req.user!.id);
       userOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       res.json(userOrders);
     }
   });
 
   // GET /api/orders/:id
-  app.get("/api/orders/:id", requireAuth, (req: Request, res: Response) => {
-    const order = dbService.getOrderById(req.params.id);
+  app.get("/api/orders/:id", requireAuth, async (req: Request, res: Response) => {
+    const order = await dbService.getOrderById(req.params.id);
     if (!order) {
       res.status(404).json({ error: "Order not found." });
       return;
@@ -451,7 +452,7 @@ async function startServer() {
   });
 
   // PUT /api/orders/:id/status (Admin only - status updater with real-time Socket.IO emission)
-  app.put("/api/orders/:id/status", requireAuth, requireAdmin, (req: Request, res: Response) => {
+  app.put("/api/orders/:id/status", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const { status } = req.body;
       const validStatuses: OrderStatus[] = [
@@ -469,7 +470,7 @@ async function startServer() {
         return;
       }
 
-      const updatedOrder = dbService.updateOrderStatus(req.params.id, status as OrderStatus);
+      const updatedOrder = await dbService.updateOrderStatus(req.params.id, status as OrderStatus);
       if (!updatedOrder) {
         res.status(404).json({ error: "Order not found." });
         return;
@@ -496,19 +497,38 @@ async function startServer() {
   // ==================== USERS ENDPOINTS (Admin only) ====================
 
   // GET /api/users
-  app.get("/api/users", requireAuth, requireAdmin, (req: Request, res: Response) => {
-    const users = dbService.getUsers();
+  app.get("/api/users", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    const users = await dbService.getUsers();
     res.json(users);
   });
 
+  // GET /api/supabase-status
+  app.get("/api/supabase-status", async (req: Request, res: Response) => {
+    try {
+      const { syncFromSupabase, getSupabaseStatus, SQL_SETUP_SCRIPT } = await import("./server/supabase");
+      await syncFromSupabase();
+      const status = getSupabaseStatus();
+      res.json({
+        configured: status.configured,
+        connected: status.connected,
+        error: status.error,
+        tables: status.tablesFound,
+        sql: SQL_SETUP_SCRIPT
+      });
+    } catch (err: any) {
+      console.error("Error in /api/supabase-status:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // DELETE /api/users/:id
-  app.delete("/api/users/:id", requireAuth, requireAdmin, (req: Request, res: Response) => {
+  app.delete("/api/users/:id", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     if (req.params.id === req.user!.id) {
       res.status(400).json({ error: "You cannot delete your own admin account." });
       return;
     }
     
-    const success = dbService.deleteUser(req.params.id);
+    const success = await dbService.deleteUser(req.params.id);
     if (!success) {
       res.status(404).json({ error: "User not found." });
       return;

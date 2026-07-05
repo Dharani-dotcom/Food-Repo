@@ -20,10 +20,14 @@ import {
   Activity,
   AlertCircle,
   Eye,
-  FileText
+  FileText,
+  Database,
+  Copy,
+  CheckSquare,
+  RefreshCw
 } from "lucide-react";
 
-type TabType = "overview" | "orders" | "menu" | "users";
+type TabType = "overview" | "orders" | "menu" | "users" | "database";
 
 export const AdminPage: React.FC = () => {
   const { user } = useAuth();
@@ -35,6 +39,12 @@ export const AdminPage: React.FC = () => {
   const [foods, setFoods] = useState<Food[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Supabase Sync States
+  const [supabaseStatus, setSupabaseStatus] = useState<any>(null);
+  const [supabaseSql, setSupabaseSql] = useState<string>("");
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [isSyncingDb, setIsSyncingDb] = useState(false);
 
   // Modal / Form state for Food Edit/Add
   const [isEditing, setIsEditing] = useState(false);
@@ -59,6 +69,27 @@ export const AdminPage: React.FC = () => {
     }
   }, [user, navigate, showToast]);
 
+  const fetchSupabaseStatus = async () => {
+    try {
+      setIsSyncingDb(true);
+      const res = await apiFetch("/api/supabase-status");
+      if (res.ok) {
+        const data = await res.json();
+        setSupabaseStatus({
+          configured: data.configured,
+          connected: data.connected,
+          error: data.error,
+          tablesFound: data.tables
+        });
+        setSupabaseSql(data.sql || "");
+      }
+    } catch (err) {
+      console.error("Error loading Supabase status:", err);
+    } finally {
+      setIsSyncingDb(false);
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -82,6 +113,9 @@ export const AdminPage: React.FC = () => {
         const usersData = await usersRes.json();
         setUsers(usersData);
       }
+
+      // Fetch Supabase status
+      await fetchSupabaseStatus();
     } catch (err) {
       console.error("Error loading admin datasets:", err);
       showToast("Failed to load dashboard statistics.", "error");
@@ -274,8 +308,8 @@ export const AdminPage: React.FC = () => {
           </div>
 
           {/* Quick Tab Selectors */}
-          <div className="flex bg-zinc-900 border border-zinc-850 p-1 rounded-xl">
-            {(["overview", "orders", "menu", "users"] as TabType[]).map((tab) => (
+          <div className="flex bg-zinc-900 border border-zinc-850 p-1 rounded-xl flex-wrap gap-1">
+            {(["overview", "orders", "menu", "users", "database"] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -285,7 +319,7 @@ export const AdminPage: React.FC = () => {
                     : "text-zinc-400 hover:text-zinc-100"
                 }`}
               >
-                {tab}
+                {tab === "database" ? "Database Sync" : tab}
               </button>
             ))}
           </div>
@@ -737,6 +771,143 @@ export const AdminPage: React.FC = () => {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================= DATABASE SYNC TAB ======================= */}
+            {activeTab === "database" && (
+              <div className="bg-zinc-900/60 border border-zinc-850 p-6 rounded-2xl space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <h2 className="font-sans font-extrabold text-xl text-white flex items-center gap-2">
+                      <Database className="w-5 h-5 text-orange-500" />
+                      Supabase Cloud Sync Settings
+                    </h2>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Manage real-time cloud synchronization, connection health, and database structure.
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await fetchSupabaseStatus();
+                      showToast("Connection refreshed successfully!", "success");
+                    }}
+                    disabled={isSyncingDb}
+                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDb ? "animate-spin" : ""}`} />
+                    Refresh Connection
+                  </button>
+                </div>
+
+                {/* Connection Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Status Indicator Card */}
+                  <div className="bg-zinc-950 border border-zinc-850 p-5 rounded-xl flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Cloud Connection</span>
+                      <h3 className="font-bold text-lg mt-1 text-white flex items-center gap-2">
+                        {supabaseStatus?.configured ? (
+                          supabaseStatus?.connected ? (
+                            <>
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                              Active & Connected
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+                              Tables Missing
+                            </>
+                          )
+                        ) : (
+                          <>
+                            <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 inline-block" />
+                            Not Configured
+                          </>
+                        )}
+                      </h3>
+                      <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+                        {supabaseStatus?.configured ? (
+                          supabaseStatus?.connected ? (
+                            "Synchronizing writes instantly. Registered users and orders are secured permanently in your Supabase DB."
+                          ) : (
+                            "Credentials verified, but tables do not exist in your database. Run the SQL script below to create them."
+                          )
+                        ) : (
+                          "Using fallback local JSON storage. Add 'SUPABASE_URL' and 'SUPABASE_ANON_KEY' to your secrets to enable Cloud Database."
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Schema Health Card */}
+                  <div className="bg-zinc-950 border border-zinc-850 p-5 rounded-xl flex flex-col justify-between md:col-span-2">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">PostgreSQL Tables Status</span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                        {["users", "passwords", "foods", "orders"].map((tbl) => {
+                          const exist = supabaseStatus?.tablesFound?.[tbl];
+                          return (
+                            <div key={tbl} className={`p-3 rounded-lg border ${exist ? "bg-emerald-950/10 border-emerald-500/20 text-emerald-400" : "bg-zinc-905 border-zinc-800 text-zinc-500"} flex flex-col items-center text-center`}>
+                              <CheckSquare className={`w-5 h-5 mb-1 ${exist ? "text-emerald-400" : "text-zinc-650"}`} />
+                              <span className="text-[10px] font-mono leading-none">masala_{tbl}</span>
+                              <span className="text-[9px] font-bold mt-1.5 uppercase tracking-tight">
+                                {exist ? "Verified" : "Missing"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stateless explanation banner */}
+                {!supabaseStatus?.connected && (
+                  <div className="bg-zinc-950 border border-zinc-850 p-5 rounded-xl border-l-4 border-l-amber-500 flex gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-bold text-white">Why register & login data resets without Supabase</h4>
+                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                        This application is deployed on <strong>stateless Cloud Run containers</strong>. When the app is idle or a new build is deployed, the container scales down to zero, erasing any users you register or orders you place in the temporary filesystem database.
+                      </p>
+                      <div className="mt-2.5 flex flex-wrap gap-2 text-[10px] text-zinc-300">
+                        <span>💡 To enable persistent storage:</span>
+                        <code className="bg-zinc-900 px-1.5 py-0.5 rounded font-mono">1. Create a Supabase project</code>
+                        <code className="bg-zinc-900 px-1.5 py-0.5 rounded font-mono">2. Add SUPABASE_URL & SUPABASE_ANON_KEY to your env secrets</code>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SQL setup script code block */}
+                {supabaseSql && (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-zinc-300">PostgreSQL Schema Setup Script</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(supabaseSql);
+                          setCopiedSql(true);
+                          showToast("SQL Script copied to clipboard!", "success");
+                          setTimeout(() => setCopiedSql(false), 2000);
+                        }}
+                        className="px-3 py-1.5 bg-orange-600/10 border border-orange-500/20 text-orange-400 hover:bg-orange-600 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        {copiedSql ? "Copied!" : "Copy SQL Script"}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <pre className="bg-zinc-950 border border-zinc-850 rounded-xl p-4 text-[11px] font-mono text-zinc-300 overflow-x-auto max-h-[280px]">
+                        {supabaseSql}
+                      </pre>
+                    </div>
+                    <p className="text-[10px] text-zinc-500 leading-relaxed">
+                      Copy the script above, navigate to your <strong>Supabase Dashboard</strong>, select <strong>SQL Editor</strong>, paste it in a new query window, and click <strong>Run</strong>. Once the tables are successfully created, click the <strong>Refresh Connection</strong> button above to connect the sync instantly!
+                    </p>
                   </div>
                 )}
               </div>

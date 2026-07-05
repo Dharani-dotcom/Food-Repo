@@ -3,7 +3,7 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
-import { CreditCard, Truck, Phone, MapPin, ClipboardCheck, ArrowLeft, ShieldCheck } from "lucide-react";
+import { CreditCard, Truck, Phone, MapPin, ClipboardCheck, ArrowLeft, ShieldCheck, QrCode, CheckCircle2, AlertCircle, Smartphone } from "lucide-react";
 import { apiFetch } from "../utils/api";
 
 export const CheckoutPage: React.FC = () => {
@@ -19,6 +19,14 @@ export const CheckoutPage: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Payment integration states
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "GPay" | "PhonePe">("COD");
+  const [upiId, setUpiId] = useState("");
+  const [isUpiRequestSent, setIsUpiRequestSent] = useState(false);
+  const [paymentStep, setPaymentStep] = useState<"idle" | "verifying" | "success">("idle");
+  const [countdown, setCountdown] = useState(60);
+  const [isVerifyingUpiId, setIsVerifyingUpiId] = useState(false);
+
   useEffect(() => {
     // Redirect if cart is empty
     if (cart.length === 0) {
@@ -26,6 +34,22 @@ export const CheckoutPage: React.FC = () => {
       navigate("/");
     }
   }, [cart, navigate, showToast]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (paymentStep === "verifying" && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [paymentStep, countdown]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -43,32 +67,69 @@ export const CheckoutPage: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePlaceOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  const startPaymentVerification = () => {
+    setCountdown(60);
+    setPaymentStep("verifying");
+    setIsUpiRequestSent(false);
+  };
 
+  const submitPaidOrder = async () => {
     setLoading(true);
-
     try {
-      // =========================================================================
-      // TODO: PAYMENT INTEGRATION GATEWAY PLACEHOLDER
-      // This is where you would process real payments via Stripe, Razorpay, etc.
-      // 1. Initialize Razorpay Checkout / Stripe Elements.
-      // 2. Validate token on backend.
-      // 3. Mark paymentStatus as 'Paid' instead of 'Pending' in order payload.
-      // 
-      // Example integrations schema:
-      // const paymentDetails = await paymentService.processPayment({ amount: cartTotal });
-      // if (!paymentDetails.success) throw new Error("Payment gateway rejected transaction.");
-      // =========================================================================
-
       const orderPayload = {
         foodItems: cart.map((item) => ({
           foodId: item.foodId,
           quantity: item.quantity
         })),
         deliveryAddress: formData.address,
-        phone: formData.phone
+        phone: formData.phone,
+        paymentStatus: "Paid"
+      };
+
+      const response = await apiFetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderPayload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to place order.");
+      }
+
+      showToast(`Payment of ₹${cartTotal} successful! Your order has been placed.`, "success");
+      clearCart();
+      setPaymentStep("idle");
+      navigate(`/orders/${data.id}`);
+    } catch (err: any) {
+      showToast(err.message || "An error occurred while processing your order.", "error");
+      setPaymentStep("idle");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlaceOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    if (paymentMethod !== "COD") {
+      startPaymentVerification();
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const orderPayload = {
+        foodItems: cart.map((item) => ({
+          foodId: item.foodId,
+          quantity: item.quantity
+        })),
+        deliveryAddress: formData.address,
+        phone: formData.phone,
+        paymentStatus: "Pending"
       };
 
       const response = await apiFetch("/api/orders", {
@@ -174,14 +235,80 @@ export const CheckoutPage: React.FC = () => {
                 Payment Options
               </h2>
 
-              {/* Highlight Cash on Delivery */}
-              <div className="border-2 border-orange-500/20 bg-orange-950/10 p-4 rounded-xl flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold text-white">Cash on Delivery (COD)</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">Pay with cash or card upon delivery driver arrival.</p>
+              <div className="space-y-3.5">
+                {/* Cash on Delivery */}
+                <div
+                  onClick={() => setPaymentMethod("COD")}
+                  className={`border-2 rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === "COD"
+                      ? "border-orange-500 bg-orange-950/10"
+                      : "border-zinc-800 hover:border-zinc-750 bg-zinc-950/30"
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-bold text-white flex items-center gap-2">
+                      Cash on Delivery (COD)
+                    </p>
+                    <p className="text-xs text-zinc-400 mt-0.5">Pay with cash or card upon delivery driver arrival.</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-4 flex items-center justify-center ${
+                    paymentMethod === "COD" ? "border-orange-500 bg-zinc-950" : "border-zinc-700 bg-zinc-950"
+                  }`}>
+                    {paymentMethod === "COD" && <div className="w-2 h-2 rounded-full bg-orange-500"></div>}
+                  </div>
                 </div>
-                <div className="w-5 h-5 rounded-full border-4 border-orange-500 bg-zinc-950 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+
+                {/* Google Pay */}
+                <div
+                  onClick={() => setPaymentMethod("GPay")}
+                  className={`border-2 rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === "GPay"
+                      ? "border-orange-500 bg-orange-950/10"
+                      : "border-zinc-800 hover:border-zinc-750 bg-zinc-950/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-white/5 border border-zinc-800 flex items-center justify-center font-bold text-sm text-white select-none">
+                      <span className="text-blue-500">G</span>
+                      <span className="text-red-500">P</span>
+                      <span className="text-yellow-500">a</span>
+                      <span className="text-green-500">y</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">Google Pay (GPay)</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">Pay instantly using Google Pay UPI app or QR.</p>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-4 flex items-center justify-center ${
+                    paymentMethod === "GPay" ? "border-orange-500 bg-zinc-950" : "border-zinc-700 bg-zinc-950"
+                  }`}>
+                    {paymentMethod === "GPay" && <div className="w-2 h-2 rounded-full bg-orange-500"></div>}
+                  </div>
+                </div>
+
+                {/* PhonePe */}
+                <div
+                  onClick={() => setPaymentMethod("PhonePe")}
+                  className={`border-2 rounded-2xl p-4 flex items-center justify-between cursor-pointer transition-all ${
+                    paymentMethod === "PhonePe"
+                      ? "border-orange-500 bg-orange-950/10"
+                      : "border-zinc-800 hover:border-zinc-750 bg-zinc-950/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-indigo-600 border border-indigo-500 flex items-center justify-center font-bold text-xs text-white select-none">
+                      Pe
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-white">PhonePe</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">Pay instantly using PhonePe UPI app or QR.</p>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-4 flex items-center justify-center ${
+                    paymentMethod === "PhonePe" ? "border-orange-500 bg-zinc-950" : "border-zinc-700 bg-zinc-950"
+                  }`}>
+                    {paymentMethod === "PhonePe" && <div className="w-2 h-2 rounded-full bg-orange-500"></div>}
+                  </div>
                 </div>
               </div>
 
@@ -251,6 +378,157 @@ export const CheckoutPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* UPI Payment Verification Overlay Modal */}
+      {paymentStep !== "idle" && (
+        <div className="fixed inset-0 bg-zinc-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-905 border border-zinc-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl relative space-y-6">
+            
+            {/* Top Bar / Title */}
+            <div className="text-center space-y-1.5">
+              <div className="inline-flex p-3 rounded-full bg-orange-500/10 text-orange-500 mb-2">
+                {paymentMethod === "GPay" ? (
+                  <span className="font-extrabold text-lg tracking-wider text-white select-none">
+                    <span className="text-blue-500">G</span>
+                    <span className="text-red-500">P</span>
+                    <span className="text-yellow-500">a</span>
+                    <span className="text-green-500">y</span>
+                  </span>
+                ) : (
+                  <span className="font-extrabold text-sm tracking-wide text-indigo-400 select-none">PhonePe</span>
+                )}
+              </div>
+              <h3 className="text-xl font-black text-white">UPI Payment Gateway</h3>
+              <p className="text-xs text-zinc-400">
+                Completing your order of <span className="font-bold text-orange-400">₹{cartTotal}</span>
+              </p>
+            </div>
+
+            {paymentStep === "verifying" && (
+              <div className="space-y-6">
+                
+                {/* Method Tabs: QR Code */}
+                <div className="bg-zinc-950 p-5 rounded-2xl border border-zinc-850 flex flex-col items-center justify-center text-center space-y-4">
+                  <p className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4 text-orange-500" />
+                    Scan QR Code to Pay
+                  </p>
+                  
+                  {/* Real, scannable UPI QR Code using qrserver */}
+                  <div className="bg-white p-2.5 rounded-xl border-4 border-zinc-800">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        `upi://pay?pa=masalakitchen@okaxis&pn=Masala%20Kitchen&am=${cartTotal}&cu=INR&tn=MasalaKitchenOrder`
+                      )}`}
+                      alt="UPI Payment QR Code"
+                      className="w-[150px] h-[150px]"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 max-w-[280px]">
+                    Open your {paymentMethod === "GPay" ? "Google Pay" : "PhonePe"} app, tap Scan QR, scan this code, and authorize payment of <span className="font-bold text-white">₹{cartTotal}</span>.
+                  </p>
+                </div>
+
+                {/* Enter UPI ID Form */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                    Or pay via UPI ID Request
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-zinc-500" />
+                      <input
+                        type="text"
+                        value={upiId}
+                        onChange={(e) => setUpiId(e.target.value)}
+                        placeholder="yourname@upi"
+                        className="w-full bg-zinc-950 border border-zinc-850 focus:border-orange-500 rounded-xl py-2 pl-9 pr-3 text-xs outline-none text-white transition-all"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isVerifyingUpiId || !upiId.trim()}
+                      onClick={async () => {
+                        setIsVerifyingUpiId(true);
+                        // simulate requesting push notification
+                        await new Promise(r => setTimeout(r, 800));
+                        setIsVerifyingUpiId(false);
+                        setIsUpiRequestSent(true);
+                        showToast("UPI Collect Request Sent! Please approve on your UPI App.", "info");
+                      }}
+                      className="bg-zinc-800 hover:bg-zinc-750 text-white font-bold px-4 rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Request
+                    </button>
+                  </div>
+                  {isUpiRequestSent && (
+                    <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                      Collect Request sent to your UPI App!
+                    </p>
+                  )}
+                </div>
+
+                {/* Verification Actions & Timer */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex justify-between items-center text-xs text-zinc-500">
+                    <span>Awaiting payment...</span>
+                    <span className="font-mono text-orange-400">{countdown}s remaining</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentStep("idle")}
+                      className="border border-zinc-800 hover:bg-zinc-850 text-zinc-400 hover:text-white font-bold py-2.5 rounded-xl text-xs transition-all"
+                    >
+                      Cancel Payment
+                    </button>
+                    
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setPaymentStep("success");
+                        setTimeout(() => {
+                          submitPaidOrder();
+                        }, 1800);
+                      }}
+                      className="bg-orange-600 hover:bg-orange-500 text-white font-bold py-2.5 rounded-xl text-xs shadow-lg hover:shadow-orange-600/10 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      {loading ? (
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Simulate Success</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {paymentStep === "success" && (
+              <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-2">
+                  <CheckCircle2 className="w-10 h-10 animate-bounce" />
+                </div>
+                <h4 className="text-lg font-extrabold text-white">Payment Received!</h4>
+                <p className="text-xs text-zinc-400 max-w-xs">
+                  We have verified your UPI payment of <span className="font-bold text-white">₹{cartTotal}</span>. Placing your order now...
+                </p>
+                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mt-2"></div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

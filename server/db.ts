@@ -2,6 +2,15 @@ import fs from "fs";
 import path from "path";
 import bcrypt from "bcryptjs";
 import { User, Food, Order } from "../src/types";
+import {
+  syncFromSupabase,
+  syncCreateUser,
+  syncDeleteUser,
+  syncUpsertFood,
+  syncDeleteFood,
+  syncUpsertOrder,
+  isSupabaseConfigured
+} from "./supabase";
 
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
@@ -11,7 +20,7 @@ if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
-const DEFAULT_FOODS: Food[] = [
+export const DEFAULT_FOODS: Food[] = [
   {
     id: "food_1",
     name: "Classic Paneer Tikka",
@@ -287,6 +296,10 @@ export const dbService = {
     data.users.push(user);
     data.passwords[user.id] = passwordHash;
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncCreateUser(user, passwordHash);
+    
     return user;
   },
 
@@ -297,6 +310,10 @@ export const dbService = {
     data.users.splice(index, 1);
     delete data.passwords[id];
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncDeleteUser(id);
+    
     return true;
   },
 
@@ -318,6 +335,10 @@ export const dbService = {
     };
     data.foods.push(newFood);
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncUpsertFood(newFood);
+    
     return newFood;
   },
 
@@ -331,6 +352,10 @@ export const dbService = {
     };
     data.foods[index] = updatedFood;
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncUpsertFood(updatedFood);
+    
     return updatedFood;
   },
 
@@ -340,6 +365,10 @@ export const dbService = {
     if (index === -1) return false;
     data.foods.splice(index, 1);
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncDeleteFood(id);
+    
     return true;
   },
 
@@ -365,6 +394,10 @@ export const dbService = {
     };
     data.orders.push(newOrder);
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncUpsertOrder(newOrder);
+    
     return newOrder;
   },
 
@@ -374,6 +407,78 @@ export const dbService = {
     if (index === -1) return null;
     data.orders[index].orderStatus = status;
     writeDb(data);
+    
+    // Background sync to Supabase
+    syncUpsertOrder(data.orders[index]);
+    
     return data.orders[index];
   }
 };
+
+// Initialize cloud sync on start
+export async function initSupabaseSync() {
+  if (!isSupabaseConfigured) {
+    console.log("ℹ️ Supabase environment variables not configured. Operating in local-only mode.");
+    return;
+  }
+
+  console.log("🔄 Starting Supabase cloud synchronization...");
+  try {
+    const syncResult = await syncFromSupabase();
+    if (syncResult.success) {
+      const data = readDb();
+      let modified = false;
+
+      if (syncResult.users && syncResult.users.length > 0) {
+        data.users = syncResult.users;
+        modified = true;
+      }
+      if (syncResult.passwords && Object.keys(syncResult.passwords).length > 0) {
+        data.passwords = syncResult.passwords;
+        modified = true;
+      }
+      if (syncResult.foods && syncResult.foods.length > 0) {
+        data.foods = syncResult.foods;
+        modified = true;
+      }
+      if (syncResult.orders && syncResult.orders.length > 0) {
+        data.orders = syncResult.orders;
+        modified = true;
+      }
+
+      const seeded = seedDefaultData(data);
+      writeDb(seeded);
+
+      // Seed Supabase with defaults if it was completely empty
+      if (!syncResult.foods || syncResult.foods.length === 0) {
+        console.log("Seeding default foods to Supabase...");
+        for (const food of seeded.foods) {
+          await syncUpsertFood(food);
+        }
+      }
+      if (!syncResult.users || syncResult.users.length === 0) {
+        console.log("Seeding default users to Supabase...");
+        for (const user of seeded.users) {
+          await syncCreateUser(user, seeded.passwords[user.id]);
+        }
+      }
+      if (!syncResult.orders || syncResult.orders.length === 0) {
+        console.log("Seeding default orders to Supabase...");
+        for (const order of seeded.orders) {
+          await syncUpsertOrder(order);
+        }
+      }
+
+      console.log("✅ Supabase cloud-sync initialization completed successfully! Local cache updated.");
+    } else {
+      console.warn("⚠️ Supabase sync skipped or failed. Operating in local-only mode.");
+    }
+  } catch (err: any) {
+    console.error("❌ Exception during Supabase startup sync:", err.message);
+  }
+}
+
+// Trigger initial synchronization
+initSupabaseSync().catch(err => {
+  console.error("Unhandled error in initSupabaseSync:", err);
+});
