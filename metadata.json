@@ -1,0 +1,6 @@
+{
+  "name": "Gourmet Food Ordering",
+  "description": "A premium full-stack food ordering platform featuring a modern glassmorphism UI, secure authentications, administrative controls, and real-time Socket.IO order tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
