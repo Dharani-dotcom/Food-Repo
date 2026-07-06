@@ -275,8 +275,11 @@ export const CheckoutPage: React.FC = () => {
                       <span className="text-green-500">y</span>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-white">Google Pay (GPay)</p>
-                      <p className="text-xs text-zinc-400 mt-0.5">Pay instantly using Google Pay UPI app or QR.</p>
+                      <p className="text-sm font-bold text-white flex items-center gap-2">
+                        Google Pay (GPay)
+                        <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded-full font-mono">priyadha1988-3@okhdfcbank</span>
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-0.5">Pay instantly to priyadha1988-3@okhdfcbank via Google Pay or QR.</p>
                     </div>
                   </div>
                   <div className={`w-5 h-5 rounded-full border-4 flex items-center justify-center ${
@@ -418,7 +421,9 @@ export const CheckoutPage: React.FC = () => {
                   <div className="bg-white p-2.5 rounded-xl border-4 border-zinc-800">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                        `upi://pay?pa=masalakitchen@okaxis&pn=Masala%20Kitchen&am=${cartTotal}&cu=INR&tn=MasalaKitchenOrder`
+                        paymentMethod === "GPay"
+                          ? `upi://pay?pa=priyadha1988-3@okhdfcbank&pn=priyadha%201988&am=${cartTotal}&cu=INR&tn=MasalaKitchenOrder`
+                          : `upi://pay?pa=masalakitchen@okaxis&pn=Masala%20Kitchen&am=${cartTotal}&cu=INR&tn=MasalaKitchenOrder`
                       )}`}
                       alt="UPI Payment QR Code"
                       className="w-[150px] h-[150px]"
@@ -426,9 +431,22 @@ export const CheckoutPage: React.FC = () => {
                     />
                   </div>
 
-                  <p className="text-[11px] text-zinc-400 max-w-[280px]">
-                    Open your {paymentMethod === "GPay" ? "Google Pay" : "PhonePe"} app, tap Scan QR, scan this code, and authorize payment of <span className="font-bold text-white">₹{cartTotal}</span>.
-                  </p>
+                  <div className="text-zinc-300 space-y-1 text-[11px] leading-relaxed max-w-[280px]">
+                    <p>
+                      Open your {paymentMethod === "GPay" ? "Google Pay" : "PhonePe"} app, tap Scan QR, scan this code, and authorize payment of <span className="font-bold text-white">₹{cartTotal}</span>.
+                    </p>
+                    {paymentMethod === "GPay" && (
+                      <div className="bg-zinc-900 border border-zinc-800 p-2.5 rounded-xl mt-3 space-y-1 text-left w-full">
+                        <p className="font-bold text-orange-400 text-xs flex justify-between items-center">
+                          <span>UPI ID:</span>
+                          <span className="font-mono text-white text-[11px] bg-zinc-950 px-2 py-0.5 rounded border border-zinc-850">priyadha1988-3@okhdfcbank</span>
+                        </p>
+                        <p className="text-[10px] text-zinc-400 mt-1">
+                          You can also pay directly to UPI ID <span className="text-white font-mono font-semibold text-[10px]">priyadha1988-3@okhdfcbank</span> (Name: <span className="text-white font-semibold">priyadha 1988</span>).
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Enter UPI ID Form */}

@@ -61,6 +61,47 @@ export const AdminPage: React.FC = () => {
 
   const categories = ["Starters", "Mains", "Breads", "Desserts", "Beverages"];
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      showToast("Image is too large. Please select an image under 3MB.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFoodForm((prev) => ({ ...prev, image: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      showToast("Image is too large. Please select an image under 3MB.", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFoodForm((prev) => ({ ...prev, image: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Security gate
   useEffect(() => {
     if (user && user.role !== "Admin") {
@@ -585,13 +626,55 @@ export const AdminPage: React.FC = () => {
                         </div>
 
                         <div className="space-y-1">
-                          <label className="font-bold text-zinc-400 uppercase">Image URL (Optional)</label>
+                          <label className="font-bold text-zinc-400 uppercase">Product Image / Photo</label>
+                          <div 
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={`border-2 border-dashed rounded-xl p-3 text-center transition-all flex flex-col items-center justify-center min-h-[96px] ${
+                              isDragging 
+                                ? "border-orange-500 bg-orange-950/15" 
+                                : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
+                            }`}
+                          >
+                            {foodForm.image ? (
+                              <div className="flex items-center gap-3 w-full">
+                                <img 
+                                  src={foodForm.image} 
+                                  alt="Preview" 
+                                  referrerPolicy="no-referrer"
+                                  className="w-12 h-12 object-cover rounded-lg border border-zinc-800 shrink-0"
+                                />
+                                <div className="flex-1 text-left min-w-0">
+                                  <p className="text-[10px] text-zinc-400 truncate">Photo selected successfully</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFoodForm({ ...foodForm, image: "" })}
+                                    className="text-rose-500 text-[10px] font-bold hover:underline cursor-pointer"
+                                  >
+                                    Remove photo
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <label className="cursor-pointer block w-full py-1.5">
+                                <span className="text-[10px] font-semibold text-orange-500 hover:text-orange-400">Click to upload photo</span>
+                                <span className="text-[9px] text-zinc-500 block mt-0.5">or drag & drop (under 3MB)</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={handleFileChange} 
+                                  className="hidden" 
+                                />
+                              </label>
+                            )}
+                          </div>
                           <input
                             type="text"
                             value={foodForm.image}
                             onChange={(e) => setFoodForm({ ...foodForm, image: e.target.value })}
-                            className="w-full bg-zinc-900 border border-zinc-850 focus:border-orange-500 outline-none rounded-xl py-2.5 px-4 text-white"
-                            placeholder="https://unsplash.com/photo-..."
+                            className="w-full bg-zinc-900 border border-zinc-850 focus:border-orange-500 outline-none rounded-xl py-1.5 px-3 text-[10px] text-zinc-300 mt-1.5"
+                            placeholder="Or paste an image URL instead..."
                           />
                         </div>
                       </div>
