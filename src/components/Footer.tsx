@@ -32,6 +32,9 @@ export const Footer: React.FC = () => {
             <li>
               <Link to="/profile" className="hover:text-orange-500 transition-colors">My Profile</Link>
             </li>
+            <li>
+              <Link to="/admin-secret" className="hover:text-orange-500/80 text-orange-500/60 font-semibold transition-colors">Admin Secret Page</Link>
+            </li>
           </ul>
         </div>
 

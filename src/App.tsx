@@ -15,6 +15,7 @@ import { OrderHistoryPage } from "./pages/OrderHistoryPage";
 import { OrderStatusPage } from "./pages/OrderStatusPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
+import { AdminSecretPage } from "./pages/AdminSecretPage";
 
 // Protected Route wrappers
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -101,6 +102,10 @@ function AppLayout() {
                 <AdminPage />
               </AdminRoute>
             } 
+          />
+          <Route 
+            path="/admin-secret" 
+            element={<AdminSecretPage />} 
           />
           {/* Fallback to menu */}
           <Route path="*" element={<Navigate to="/" replace />} />
