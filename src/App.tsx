@@ -69,14 +69,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<MenuPage />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route 
-            path="/checkout" 
-            element={
-              <ProtectedRoute>
-                <CheckoutPage />
-              </ProtectedRoute>
-            } 
-          />
+          <Route path="/checkout" element={<CheckoutPage />} />
           <Route 
             path="/orders" 
             element={

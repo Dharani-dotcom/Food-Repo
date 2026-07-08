@@ -10,6 +10,7 @@ interface AuthContextType {
   register: (data: Omit<User, "id" | "createdAt"> & { password?: string }) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -112,6 +113,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const clearError = () => setError(null);
+  const refreshUser = async () => {
+    await fetchProfile();
+  };
 
   return (
     <AuthContext.Provider
@@ -122,7 +126,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
-        clearError
+        clearError,
+        refreshUser
       }}
     >
       {children}

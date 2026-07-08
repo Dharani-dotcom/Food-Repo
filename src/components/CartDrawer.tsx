@@ -17,11 +17,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose }) => {
 
   const handleCheckout = () => {
     onClose();
-    if (user) {
-      navigate("/checkout");
-    } else {
-      navigate("/auth", { state: { redirect: "/checkout", message: "Please sign in or create an account to place an order." } });
-    }
+    navigate("/checkout");
   };
 
   return (

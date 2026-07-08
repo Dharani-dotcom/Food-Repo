@@ -342,10 +342,10 @@ async function startServer() {
 
   // ==================== ORDERS ENDPOINTS ====================
 
-  // POST /api/orders (Client places order)
-  app.post("/api/orders", requireAuth, async (req: Request, res: Response) => {
+  // POST /api/orders (Client places order - supports logged in users & guests)
+  app.post("/api/orders", async (req: Request, res: Response) => {
     try {
-      const { foodItems, deliveryAddress, phone } = req.body;
+      const { foodItems, deliveryAddress, phone, name, email } = req.body;
 
       if (!foodItems || !Array.isArray(foodItems) || foodItems.length === 0) {
         res.status(400).json({ error: "Order must contain at least one food item." });
@@ -357,9 +357,58 @@ async function startServer() {
         return;
       }
 
-      const user = await dbService.getUserById(req.user!.id);
+      let user;
+      let tokenToSet: string | null = null;
+
+      if (req.user) {
+        user = await dbService.getUserById(req.user.id);
+      } else {
+        // Guest checkout - requires name and email
+        if (!name || !email) {
+          res.status(400).json({ error: "Your Name and Email Address are required to complete guest checkout." });
+          return;
+        }
+
+        // Check if user already exists with this email
+        let existingUser = await dbService.getUserByEmail(email);
+        if (!existingUser) {
+          // Auto-generate a guest user
+          const guestId = `user_${Math.random().toString(36).substring(2, 11)}`;
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash("guest_password_123", salt);
+
+          existingUser = await dbService.createUser({
+            id: guestId,
+            name,
+            email,
+            phone,
+            address: deliveryAddress,
+            role: "User",
+            createdAt: new Date().toISOString()
+          }, hashedPassword);
+        } else {
+          // Update address/phone
+          await dbService.updateUser(existingUser.id, {
+            phone,
+            address: deliveryAddress
+          });
+          existingUser = await dbService.getUserById(existingUser.id) || existingUser;
+        }
+
+        user = existingUser;
+
+        // Generate JWT token for auto-login
+        const token = jwt.sign(
+          { id: user.id, email: user.email, role: user.role },
+          JWT_SECRET,
+          { expiresIn: "7d" }
+        );
+
+        tokenToSet = token;
+      }
+
       if (!user) {
-        res.status(404).json({ error: "Logged in user not found." });
+        res.status(404).json({ error: "User profile could not be loaded or created." });
         return;
       }
 
@@ -412,7 +461,20 @@ async function startServer() {
       // Emits instant event to all connected admin clients that a new order was placed
       io.to("admins").emit("newOrder", newOrder);
 
-      res.status(201).json(newOrder);
+      // Set cookie if token generated
+      if (tokenToSet) {
+        res.cookie("token", tokenToSet, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+      }
+
+      res.status(201).json({
+        ...newOrder,
+        ...(tokenToSet ? { token: tokenToSet, user } : {})
+      });
     } catch (err) {
       console.error("Create order error:", err);
       res.status(500).json({ error: "Failed to place order." });

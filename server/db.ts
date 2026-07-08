@@ -303,6 +303,24 @@ export const dbService = {
     return user;
   },
 
+  updateUser(id: string, updates: Partial<Omit<User, "id" | "createdAt">>): User | undefined {
+    const data = readDb();
+    const index = data.users.findIndex((u) => u.id === id);
+    if (index === -1) return undefined;
+    
+    data.users[index] = {
+      ...data.users[index],
+      ...updates
+    };
+    writeDb(data);
+    
+    // Sync update to Supabase
+    const passwordHash = data.passwords[id] || "";
+    syncCreateUser(data.users[index], passwordHash);
+    
+    return data.users[index];
+  },
+
   deleteUser(id: string): boolean {
     const data = readDb();
     const index = data.users.findIndex((u) => u.id === id);

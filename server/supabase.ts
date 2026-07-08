@@ -440,7 +440,7 @@ export async function syncUpsertOrder(order: Order) {
       user_id: order.userId,
       user_name: order.userName,
       user_email: order.userEmail,
-      food_items: JSON.stringify(order.foodItems),
+      food_items: order.foodItems,
       total_quantity: order.totalQuantity,
       total_price: order.totalPrice,
       delivery_address: order.deliveryAddress,

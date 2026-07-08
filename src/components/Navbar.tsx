@@ -104,15 +104,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onCartClick }) => {
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
-          ) : (
-            <Link
-              to="/auth"
-              className="flex items-center gap-1.5 bg-gradient-to-r from-orange-600 to-red-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-lg shadow-orange-600/10 hover:shadow-orange-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-            >
-              <LogIn className="w-4 h-4" />
-              Sign In
-            </Link>
-          )}
+          ) : null}
         </div>
 
         {/* Mobile controls */}
@@ -185,16 +177,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onCartClick }) => {
                 Sign Out
               </button>
             </div>
-          ) : (
-            <Link
-              to="/auth"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-orange-600 to-red-600 text-white text-sm font-semibold py-2.5 rounded-xl mt-2"
-            >
-              <LogIn className="w-4 h-4" />
-              Sign In
-            </Link>
-          )}
+          ) : null}
         </div>
       )}
     </nav>

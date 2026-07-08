@@ -3,21 +3,34 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../context/ToastContext";
-import { CreditCard, Truck, Phone, MapPin, ClipboardCheck, ArrowLeft, ShieldCheck, QrCode, CheckCircle2, AlertCircle, Smartphone } from "lucide-react";
+import { CreditCard, Truck, Phone, MapPin, ClipboardCheck, ArrowLeft, ShieldCheck, QrCode, CheckCircle2, AlertCircle, Smartphone, User as UserIcon, Mail } from "lucide-react";
 import { apiFetch } from "../utils/api";
 
 export const CheckoutPage: React.FC = () => {
   const { cart, cartTotal, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
     phone: user?.phone || "",
     address: user?.address || ""
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        address: user.address || ""
+      });
+    }
+  }, [user]);
 
   // Payment integration states
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "GPay" | "PhonePe">("COD");
@@ -61,6 +74,16 @@ export const CheckoutPage: React.FC = () => {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    if (!user) {
+      if (!formData.name.trim()) {
+        newErrors.name = "Full name is required for guest checkout";
+      }
+      if (!formData.email.trim()) {
+        newErrors.email = "Email address is required for order tracking";
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = "Please enter a valid email address";
+      }
+    }
     if (!formData.phone.trim()) newErrors.phone = "Contact phone number is required";
     if (!formData.address.trim()) newErrors.address = "Delivery address is required";
     setErrors(newErrors);
@@ -83,6 +106,8 @@ export const CheckoutPage: React.FC = () => {
         })),
         deliveryAddress: formData.address,
         phone: formData.phone,
+        name: formData.name,
+        email: formData.email,
         paymentStatus: "Paid"
       };
 
@@ -96,6 +121,12 @@ export const CheckoutPage: React.FC = () => {
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to place order.");
+      }
+
+      // If a guest token is returned, perform auto-login
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        await refreshUser();
       }
 
       showToast(`Payment of ₹${cartTotal} successful! Your order has been placed.`, "success");
@@ -129,6 +160,8 @@ export const CheckoutPage: React.FC = () => {
         })),
         deliveryAddress: formData.address,
         phone: formData.phone,
+        name: formData.name,
+        email: formData.email,
         paymentStatus: "Pending"
       };
 
@@ -142,6 +175,12 @@ export const CheckoutPage: React.FC = () => {
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to place order.");
+      }
+
+      // If a guest token is returned, perform auto-login
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        await refreshUser();
       }
 
       showToast("Order placed successfully! Heading to live tracking...", "success");
@@ -184,6 +223,53 @@ export const CheckoutPage: React.FC = () => {
               </h2>
 
               <div className="space-y-4">
+                {/* Guest Personal Info if not logged in */}
+                {!user && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+                        Your Full Name
+                      </label>
+                      <div className="relative">
+                        <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
+                        <input
+                          type="text"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          className="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none transition-colors"
+                          placeholder="John Doe"
+                        />
+                      </div>
+                      {errors.name && (
+                        <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.name}</p>
+                      )}
+                    </div>
+
+                    {/* Email Address */}
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
+                        Email Address
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
+                        <input
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          className="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none transition-colors"
+                          placeholder="john@example.com"
+                        />
+                      </div>
+                      {errors.email && (
+                        <p className="text-rose-500 text-[10px] mt-1 font-semibold">{errors.email}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Contact Phone */}
                 <div>
                   <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1.5">
