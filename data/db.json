@@ -1,0 +1,206 @@
+{
+  "users": [
+    {
+      "id": "user_admin_default",
+      "name": "Admin Chief",
+      "email": "admin@masalakitchen.in",
+      "phone": "+91 98765 43210",
+      "address": "Connaught Place, New Delhi, Delhi 110001",
+      "role": "Admin",
+      "createdAt": "2026-07-08T14:51:53.637Z"
+    },
+    {
+      "id": "user_customer_default",
+      "name": "Rohan Sharma",
+      "email": "user@masalakitchen.in",
+      "phone": "+91 91234 56789",
+      "address": "Saket, New Delhi, Delhi 110017",
+      "role": "User",
+      "createdAt": "2026-07-08T14:51:53.733Z"
+    },
+    {
+      "id": "user_vljgfwtmu",
+      "name": "M Dharani Bharathi Manoharan",
+      "email": "bharathidharani52@gmail.com",
+      "phone": "07867074080",
+      "address": "iniyanur road,piratiyur,tirichirapalli-620009",
+      "role": "User",
+      "createdAt": "2026-07-08T15:05:50.954Z"
+    },
+    {
+      "id": "test_user",
+      "name": "Test",
+      "email": "test@example.com",
+      "phone": "123",
+      "address": "abc",
+      "role": "User",
+      "createdAt": "2026-07-08T15:07:46.529Z"
+    },
+    {
+      "id": "user_qgn4f9fa9",
+      "name": "Test User",
+      "email": "curltest@example.com",
+      "phone": "1234567890",
+      "address": "Test Address",
+      "role": "User",
+      "createdAt": "2026-07-08T15:07:58.369Z"
+    }
+  ],
+  "foods": [
+    {
+      "id": "food_1",
+      "name": "Classic Paneer Tikka",
+      "description": "Cubes of fresh cottage cheese marinated in spiced yogurt and grilled in a traditional tandoor clay oven with bell peppers and onions.",
+      "price": 249,
+      "category": "Starters",
+      "image": "https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.8,
+      "createdAt": "2026-07-08T14:51:43.816Z"
+    },
+    {
+      "id": "food_2",
+      "name": "Old Delhi Butter Chicken",
+      "description": "Tender tandoori chicken cooked in a rich, creamy, and velvety tomato-butter gravy flavored with fenugreek leaves.",
+      "price": 389,
+      "category": "Mains",
+      "image": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.9,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    },
+    {
+      "id": "food_3",
+      "name": "Hyderabadi Dum Biryani",
+      "description": "Fragrant basmati rice layered with aromatic spices and slow-cooked (dum) to lock in pure traditional flavors, served with raita.",
+      "price": 349,
+      "category": "Mains",
+      "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.9,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    },
+    {
+      "id": "food_4",
+      "name": "Butter Garlic Naan",
+      "description": "Soft tandoor-baked leavened flatbread brushed with organic butter and finely chopped fresh garlic.",
+      "price": 69,
+      "category": "Breads",
+      "image": "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.7,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    },
+    {
+      "id": "food_5",
+      "name": "Creamy Paneer Butter Masala",
+      "description": "Succulent cottage cheese cubes simmered in a mildly sweet, spicy, onion-tomato cream sauce.",
+      "price": 329,
+      "category": "Mains",
+      "image": "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.8,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    },
+    {
+      "id": "food_6",
+      "name": "Kesar Gulab Jamun",
+      "description": "Deep-fried milk solids dumplings soaked in warm saffron-infused sugar syrup, garnishing with pistachio slices.",
+      "price": 99,
+      "category": "Desserts",
+      "image": "https://images.unsplash.com/photo-1626132647523-66f5bf380027?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.9,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    },
+    {
+      "id": "food_7",
+      "name": "Traditional Mango Lassi",
+      "description": "Creamy, rich yogurt drink blended sweet with premium Alphonso mango pulp and a pinch of cardamom.",
+      "price": 119,
+      "category": "Beverages",
+      "image": "https://images.unsplash.com/photo-1541658016709-82535e94bc69?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.7,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    },
+    {
+      "id": "food_8",
+      "name": "Saffron Masala Chai",
+      "description": "Rich Indian milk tea slow-brewed with fresh ginger, crushed cardamoms, cloves, and a hint of fine Kashmiri saffron.",
+      "price": 49,
+      "category": "Beverages",
+      "image": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=800",
+      "available": true,
+      "rating": 4.8,
+      "createdAt": "2026-07-08T14:51:43.817Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "order_seed_1",
+      "userId": "user_customer_default",
+      "userName": "Rohan Sharma",
+      "userEmail": "user@masalakitchen.in",
+      "foodItems": [
+        {
+          "foodId": "food_2",
+          "name": "Old Delhi Butter Chicken",
+          "price": 389,
+          "image": "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&q=80&w=800",
+          "quantity": 1
+        },
+        {
+          "foodId": "food_4",
+          "name": "Butter Garlic Naan",
+          "price": 69,
+          "image": "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=800",
+          "quantity": 2
+        }
+      ],
+      "totalQuantity": 3,
+      "totalPrice": 527,
+      "deliveryAddress": "Saket, New Delhi, Delhi 110017",
+      "phone": "+91 91234 56789",
+      "paymentStatus": "Paid",
+      "orderStatus": "Delivered",
+      "createdAt": "2026-07-07T14:51:53.819Z"
+    },
+    {
+      "id": "order_seed_2",
+      "userId": "user_customer_default",
+      "userName": "Rohan Sharma",
+      "userEmail": "user@masalakitchen.in",
+      "foodItems": [
+        {
+          "foodId": "food_3",
+          "name": "Hyderabadi Dum Biryani",
+          "price": 349,
+          "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800",
+          "quantity": 1
+        },
+        {
+          "foodId": "food_7",
+          "name": "Traditional Mango Lassi",
+          "price": 119,
+          "image": "https://images.unsplash.com/photo-1541658016709-82535e94bc69?auto=format&fit=crop&q=80&w=800",
+          "quantity": 1
+        }
+      ],
+      "totalQuantity": 2,
+      "totalPrice": 468,
+      "deliveryAddress": "Saket, New Delhi, Delhi 110017",
+      "phone": "+91 91234 56789",
+      "paymentStatus": "Paid",
+      "orderStatus": "Preparing",
+      "createdAt": "2026-07-08T14:51:53.819Z"
+    }
+  ],
+  "passwords": {
+    "user_admin_default": "$2b$10$b86iez/HlGOE6BYOmhO12OWEuW9uz9EFZrjcZCWWOQJOWVLF3nEYa",
+    "user_customer_default": "$2b$10$q5w.CVS6cPJc2Mstsv6t2OkSA37PKDkIZyWDdyb3Fl6hLLIf/P5ea",
+    "user_vljgfwtmu": "$2b$10$5ODrCeLSHKo/0GwpxvrmiuXbtluD94TH8NqGCtFhW5H.PYSB2WpAC",
+    "test_user": "hash",
+    "user_qgn4f9fa9": "$2b$10$pPRc1I9DIGnpaEEAgaPDm.3LnazpAJDwqKcNMh.eqx280iErDQoru"
+  }
+}

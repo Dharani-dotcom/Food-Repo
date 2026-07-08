@@ -935,7 +935,7 @@ export const AdminPage: React.FC = () => {
                           return (
                             <div key={tbl} className={`p-3 rounded-lg border ${exist ? "bg-emerald-950/10 border-emerald-500/20 text-emerald-400" : "bg-zinc-905 border-zinc-800 text-zinc-500"} flex flex-col items-center text-center`}>
                               <CheckSquare className={`w-5 h-5 mb-1 ${exist ? "text-emerald-400" : "text-zinc-650"}`} />
-                              <span className="text-[10px] font-mono leading-none">masala_{tbl}</span>
+                              <span className="text-[10px] font-mono leading-none">public.{tbl}</span>
                               <span className="text-[9px] font-bold mt-1.5 uppercase tracking-tight">
                                 {exist ? "Verified" : "Missing"}
                               </span>

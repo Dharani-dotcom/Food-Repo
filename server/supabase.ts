@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { User, Food, Order } from "../src/types";
 
-const supabaseUrl = process.env.SUPABASE_URL || "";
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
+const supabaseUrl = process.env.SUPABASE_URL || "https://cqnqkyjfjidgojfytmmk.supabase.co";
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "sb_publishable_qtEDuEww2AoSzWPf0PcoDg_ERzZYtTS";
 
 // Export as both a boolean (for legacy files) and a check
 export const isSupabaseConfigured = !!(
@@ -192,10 +192,19 @@ ALTER TABLE public.passwords ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public read access to foods" ON public.foods;
 CREATE POLICY "Allow public read access to foods" ON public.foods FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow public write access to foods" ON public.foods;
 CREATE POLICY "Allow public write access to foods" ON public.foods FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow public access to users" ON public.users;
 CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow public access to passwords" ON public.passwords;
 CREATE POLICY "Allow public access to passwords" ON public.passwords FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow public access to orders" ON public.orders;
 CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);
 
 -- 6. Insert initial pre-seeded food items if empty

@@ -50,6 +50,23 @@ alter publication supabase_realtime add table orders;
 alter publication supabase_realtime add table users;
 alter publication supabase_realtime add table foods;
 
+-- Set up security policies (Allow public access for development)
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read access to foods" ON public.foods;
+CREATE POLICY "Allow public read access to foods" ON public.foods FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow public write access to foods" ON public.foods;
+CREATE POLICY "Allow public write access to foods" ON public.foods FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow public access to users" ON public.users;
+CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow public access to orders" ON public.orders;
+CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);
+
 -- 5. Seed Default Foods (Only if foods table is empty)
 INSERT INTO foods (id, name, description, price, category, image, available, rating, created_at)
 VALUES 
