@@ -25,14 +25,35 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   try {
     const response = await fetch(input, requestInit);
     
-    // If backend returns a failure or route not found (404), try self-healing Supabase fallback
-    if ((!response.ok || response.status === 404) && isApiCall && supabase) {
+    const contentType = response.headers.get("content-type") || "";
+    const isHtml = contentType.toLowerCase().includes("text/html");
+
+    // If backend returns a failure, route not found (404), or returned HTML for an API route (SPA redirect)
+    if ((!response.ok || response.status === 404 || isHtml) && isApiCall && supabase) {
       const fallback = await trySupabaseFallback(urlStr, requestInit);
       if (fallback) {
         console.log(`✨ Self-healed API call [${urlStr}] using client-side Supabase client.`);
         return fallback;
       }
     }
+
+    // Try a test parse if it's an API call to make sure we don't return HTML to a JSON parser
+    if (isApiCall && supabase) {
+      try {
+        const cloned = response.clone();
+        const text = await cloned.text();
+        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+          const fallback = await trySupabaseFallback(urlStr, requestInit);
+          if (fallback) {
+            console.log(`✨ Self-healed HTML redirect for [${urlStr}] using client-side Supabase.`);
+            return fallback;
+          }
+        }
+      } catch (e) {
+        // Ignore and let default flow happen
+      }
+    }
+
     return response;
   } catch (err) {
     console.warn(`⚠️ API fetch failed for [${urlStr}]. Attempting client-side Supabase self-healing...`, err);
@@ -47,6 +68,89 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   }
 }
 
+const defaultFoods = [
+  {
+    id: "food_1",
+    name: "Classic Paneer Tikka",
+    description: "Cubes of fresh cottage cheese marinated in spiced yogurt and grilled in a traditional tandoor clay oven with bell peppers and onions.",
+    price: 249,
+    category: "Starters",
+    image: "https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.8
+  },
+  {
+    id: "food_2",
+    name: "Old Delhi Butter Chicken",
+    description: "Tender tandoori chicken cooked in a rich, creamy, and velvety tomato-butter gravy flavored with fenugreek leaves.",
+    price: 389,
+    category: "Mains",
+    image: "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.9
+  },
+  {
+    id: "food_3",
+    name: "Hyderabadi Dum Biryani",
+    description: "Fragrant basmati rice layered with aromatic spices and slow-cooked (dum) to lock in pure traditional flavors, served with raita.",
+    price: 349,
+    category: "Mains",
+    image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.9
+  },
+  {
+    id: "food_4",
+    name: "Butter Garlic Naan",
+    description: "Soft tandoor-baked leavened flatbread brushed with organic butter and finely chopped fresh garlic.",
+    price: 69,
+    category: "Breads",
+    image: "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.7
+  },
+  {
+    id: "food_5",
+    name: "Creamy Paneer Butter Masala",
+    description: "Succulent cottage cheese cubes simmered in a mildly sweet, spicy, onion-tomato cream sauce.",
+    price: 329,
+    category: "Mains",
+    image: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.8
+  },
+  {
+    id: "food_6",
+    name: "Kesar Gulab Jamun",
+    description: "Deep-fried milk solids dumplings soaked in warm saffron-infused sugar syrup, garnishing with pistachio slices.",
+    price: 99,
+    category: "Desserts",
+    image: "https://images.unsplash.com/photo-1626132647523-66f5bf380027?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.9
+  },
+  {
+    id: "food_7",
+    name: "Traditional Mango Lassi",
+    description: "Creamy, rich yogurt drink blended sweet with premium Alphonso mango pulp and a pinch of cardamom.",
+    price: 119,
+    category: "Beverages",
+    image: "https://images.unsplash.com/photo-1541658016709-82535e94bc69?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.7
+  },
+  {
+    id: "food_8",
+    name: "Saffron Masala Chai",
+    description: "Rich Indian milk tea slow-brewed with fresh ginger, crushed cardamoms, cloves, and a hint of fine Kashmiri saffron.",
+    price: 49,
+    category: "Beverages",
+    image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&q=80&w=800",
+    available: true,
+    rating: 4.8
+  }
+];
+
 /**
  * Intercepts /api/ calls and runs them directly against Supabase.
  */
@@ -54,8 +158,37 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
   try {
     // 1. GET /api/foods
     if (urlStr.endsWith("/api/foods") || urlStr.endsWith("api/foods")) {
-      const { data, error } = await supabase!.from("foods").select("*");
+      let { data, error } = await supabase!.from("foods").select("*");
       if (error) throw error;
+      
+      // If table is empty, auto-seed it on the client-side
+      if (!data || data.length === 0) {
+        console.log("✨ Supabase food table is empty. Auto-seeding default delicious foodstuffs directly on client-side...");
+        const dbItems = defaultFoods.map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          price: item.price,
+          category: item.category,
+          image: item.image,
+          available: item.available,
+          rating: item.rating
+        }));
+        
+        const { error: insertError } = await supabase!.from("foods").insert(dbItems);
+        if (!insertError) {
+          const { data: refreshedData } = await supabase!.from("foods").select("*");
+          if (refreshedData && refreshedData.length > 0) {
+            data = refreshedData;
+          } else {
+            data = dbItems;
+          }
+        } else {
+          console.warn("Could not insert seed foods, returning default items statically:", insertError);
+          data = dbItems;
+        }
+      }
+
       const mappedFoods = (data || []).map(mapFoodFromDb);
       return new Response(JSON.stringify(mappedFoods), {
         status: 200,
