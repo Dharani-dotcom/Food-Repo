@@ -1,4 +1,4 @@
-import { supabase, mapFoodFromDb, mapOrderFromDb } from "./supabaseClient";
+import { supabase, mapFoodFromDb, mapOrderFromDb, isSupabaseConfigured } from "./supabaseClient";
 
 /**
  * Custom fetch wrapper that automatically appends the JWT authorization token
@@ -156,8 +156,72 @@ const defaultFoods = [
  */
 async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<Response | null> {
   try {
-    // 1. GET /api/foods
-    if (urlStr.endsWith("/api/foods") || urlStr.endsWith("api/foods")) {
+    // 1. GET /api/supabase-status
+    if (urlStr.endsWith("/api/supabase-status") || urlStr.endsWith("api/supabase-status")) {
+      return new Response(JSON.stringify({
+        configured: isSupabaseConfigured,
+        connected: isSupabaseConfigured,
+        error: isSupabaseConfigured ? "" : "Supabase keys not configured in environment.",
+        tables: ["users", "passwords", "foods", "orders"],
+        sql: `-- COPY & PASTE THIS SQL IN YOUR SUPABASE SQL EDITOR TO CREATE TABLES\n\n` + 
+             `-- 1. Create Users Table\n` +
+             `CREATE TABLE IF NOT EXISTS public.users (\n` +
+             `  id TEXT PRIMARY KEY,\n` +
+             `  name TEXT NOT NULL,\n` +
+             `  email TEXT UNIQUE NOT NULL,\n` +
+             `  phone TEXT,\n` +
+             `  address TEXT,\n` +
+             `  role TEXT DEFAULT 'User',\n` +
+             `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
+             `);\n\n` +
+             `-- 2. Create Passwords Table\n` +
+             `CREATE TABLE IF NOT EXISTS public.passwords (\n` +
+             `  user_id TEXT PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,\n` +
+             `  password_hash TEXT NOT NULL\n` +
+             `);\n\n` +
+             `-- 3. Create Foods Table\n` +
+             `CREATE TABLE IF NOT EXISTS public.foods (\n` +
+             `  id TEXT PRIMARY KEY,\n` +
+             `  name TEXT NOT NULL,\n` +
+             `  description TEXT,\n` +
+             `  price NUMERIC NOT NULL,\n` +
+             `  category TEXT NOT NULL,\n` +
+             `  image TEXT,\n` +
+             `  available BOOLEAN DEFAULT TRUE,\n` +
+             `  rating NUMERIC DEFAULT 4.5,\n` +
+             `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
+             `);\n\n` +
+             `-- 4. Create Orders Table\n` +
+             `CREATE TABLE IF NOT EXISTS public.orders (\n` +
+             `  id TEXT PRIMARY KEY,\n` +
+             `  user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,\n` +
+             `  user_name TEXT,\n` +
+             `  user_email TEXT,\n` +
+             `  food_items JSONB NOT NULL,\n` +
+             `  total_quantity INTEGER NOT NULL,\n` +
+             `  total_price NUMERIC NOT NULL,\n` +
+             `  delivery_address TEXT,\n` +
+             `  phone TEXT,\n` +
+             `  payment_status TEXT DEFAULT 'Pending',\n` +
+             `  order_status TEXT DEFAULT 'Pending',\n` +
+             `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
+             `);\n\n` +
+             `ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;\n` +
+             `ALTER TABLE public.passwords ENABLE ROW LEVEL SECURITY;\n` +
+             `ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;\n` +
+             `ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;\n\n` +
+             `CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);\n` +
+             `CREATE POLICY "Allow public access to passwords" ON public.passwords FOR ALL USING (true);\n` +
+             `CREATE POLICY "Allow public access to foods" ON public.foods FOR ALL USING (true);\n` +
+             `CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);\n`
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 2. GET /api/foods
+    if ((urlStr.endsWith("/api/foods") || urlStr.endsWith("api/foods")) && (!init?.method || init.method === "GET")) {
       let { data, error } = await supabase!.from("foods").select("*");
       if (error) throw error;
       
@@ -196,9 +260,66 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
       });
     }
 
-    // 2. GET /api/foods/:id
+    // 3. POST /api/foods
+    if ((urlStr.endsWith("/api/foods") || urlStr.endsWith("api/foods")) && init?.method === "POST" && init.body) {
+      const body = JSON.parse(init.body as string);
+      const foodId = "food_" + Math.random().toString(36).substring(2, 11);
+      const newFood = {
+        id: foodId,
+        name: body.name,
+        description: body.description || "",
+        price: Number(body.price),
+        category: body.category,
+        image: body.image || "",
+        available: body.available !== false,
+        rating: Number(body.rating || 5.0),
+        created_at: new Date().toISOString()
+      };
+      const { error } = await supabase!.from("foods").insert(newFood);
+      if (error) throw error;
+      return new Response(JSON.stringify(mapFoodFromDb(newFood)), {
+        status: 201,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 4. PUT /api/foods/:id
+    const putFoodIdMatch = urlStr.match(/\/api\/foods\/([^/]+)$/);
+    if (putFoodIdMatch && init?.method === "PUT" && init.body) {
+      const id = putFoodIdMatch[1];
+      const body = JSON.parse(init.body as string);
+      const updatedFields = {
+        name: body.name,
+        description: body.description,
+        price: Number(body.price),
+        category: body.category,
+        image: body.image,
+        available: body.available !== false,
+        rating: Number(body.rating || 5.0)
+      };
+      const { error } = await supabase!.from("foods").update(updatedFields).eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true, ...updatedFields, id }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 5. DELETE /api/foods/:id
+    const delFoodIdMatch = urlStr.match(/\/api\/foods\/([^/]+)$/);
+    if (delFoodIdMatch && init?.method === "DELETE") {
+      const id = delFoodIdMatch[1];
+      const { error } = await supabase!.from("foods").delete().eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true, id }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 6. GET /api/foods/:id
     const foodIdMatch = urlStr.match(/\/api\/foods\/([^/]+)$/);
-    if (foodIdMatch) {
+    if (foodIdMatch && (!init?.method || init.method === "GET")) {
       const id = foodIdMatch[1];
       const { data, error } = await supabase!.from("foods").select("*").eq("id", id).single();
       if (error) throw error;
@@ -208,8 +329,8 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
       });
     }
 
-    // 3. GET /api/orders
-    if (urlStr.endsWith("/api/orders") || urlStr.endsWith("api/orders")) {
+    // 7. GET /api/orders
+    if ((urlStr.endsWith("/api/orders") || urlStr.endsWith("api/orders")) && (!init?.method || init.method === "GET")) {
       const { data, error } = await supabase!.from("orders").select("*");
       if (error) throw error;
       const mappedOrders = (data || []).map(mapOrderFromDb);
@@ -221,9 +342,22 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
       });
     }
 
-    // 4. GET /api/orders/:id
+    // 8. PUT /api/orders/:id/status
+    const orderStatusMatch = urlStr.match(/\/api\/orders\/([^/]+)\/status$/);
+    if (orderStatusMatch && init?.method === "PUT" && init.body) {
+      const id = orderStatusMatch[1];
+      const body = JSON.parse(init.body as string);
+      const { error } = await supabase!.from("orders").update({ order_status: body.status }).eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true, orderStatus: body.status }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 9. GET /api/orders/:id
     const orderIdMatch = urlStr.match(/\/api\/orders\/([^/]+)$/);
-    if (orderIdMatch) {
+    if (orderIdMatch && (!init?.method || init.method === "GET")) {
       const id = orderIdMatch[1];
       const { data, error } = await supabase!.from("orders").select("*").eq("id", id).single();
       if (error) throw error;
@@ -233,7 +367,7 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
       });
     }
 
-    // 5. POST /api/orders
+    // 10. POST /api/orders
     if ((urlStr.endsWith("/api/orders") || urlStr.endsWith("api/orders")) && init?.method === "POST" && init.body) {
       const body = JSON.parse(init.body as string);
       const orderId = "order_" + Math.random().toString(36).substring(2, 11);
@@ -273,6 +407,37 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
 
       return new Response(JSON.stringify(mapOrderFromDb(newOrder)), {
         status: 201,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 11. GET /api/users
+    if ((urlStr.endsWith("/api/users") || urlStr.endsWith("api/users")) && (!init?.method || init.method === "GET")) {
+      const { data, error } = await supabase!.from("users").select("*");
+      if (error) throw error;
+      const mappedUsers = (data || []).map((dbUser: any) => ({
+        id: dbUser.id,
+        name: dbUser.name,
+        email: dbUser.email,
+        phone: dbUser.phone || "",
+        address: dbUser.address || "",
+        role: dbUser.role || "User",
+        createdAt: dbUser.created_at || new Date().toISOString()
+      }));
+      return new Response(JSON.stringify(mappedUsers), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    // 12. DELETE /api/users/:id
+    const delUserMatch = urlStr.match(/\/api\/users\/([^/]+)$/);
+    if (delUserMatch && init?.method === "DELETE") {
+      const id = delUserMatch[1];
+      const { error } = await supabase!.from("users").delete().eq("id", id);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true, id }), {
+        status: 200,
         headers: { "Content-Type": "application/json" }
       });
     }
