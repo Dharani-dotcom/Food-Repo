@@ -378,9 +378,13 @@ export const AdminSecretPage: React.FC = () => {
     `ALTER TABLE public.passwords ENABLE ROW LEVEL SECURITY;\n` +
     `ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;\n` +
     `ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;\n\n` +
+    `DROP POLICY IF EXISTS "Allow public access to users" ON public.users;\n` +
     `CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);\n` +
+    `DROP POLICY IF EXISTS "Allow public access to passwords" ON public.passwords;\n` +
     `CREATE POLICY "Allow public access to passwords" ON public.passwords FOR ALL USING (true);\n` +
+    `DROP POLICY IF EXISTS "Allow public access to foods" ON public.foods;\n` +
     `CREATE POLICY "Allow public access to foods" ON public.foods FOR ALL USING (true);\n` +
+    `DROP POLICY IF EXISTS "Allow public access to orders" ON public.orders;\n` +
     `CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);`;
 
   return (

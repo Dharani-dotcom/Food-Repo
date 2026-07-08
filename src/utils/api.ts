@@ -37,15 +37,17 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
       }
     }
 
-    // Try a test parse if it's an API call to make sure we don't return HTML to a JSON parser
+    // Try a test parse if it's an API call to make sure we don't return HTML/text to a JSON parser
     if (isApiCall && supabase) {
       try {
         const cloned = response.clone();
         const text = await cloned.text();
-        if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+        const trimmed = text.trim();
+        const isNotJson = !trimmed.startsWith("{") && !trimmed.startsWith("[");
+        if (isNotJson || trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
           const fallback = await trySupabaseFallback(urlStr, requestInit);
           if (fallback) {
-            console.log(`✨ Self-healed HTML redirect for [${urlStr}] using client-side Supabase.`);
+            console.log(`✨ Self-healed HTML/text redirect for [${urlStr}] using client-side Supabase.`);
             return fallback;
           }
         }
@@ -210,9 +212,13 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
              `ALTER TABLE public.passwords ENABLE ROW LEVEL SECURITY;\n` +
              `ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;\n` +
              `ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;\n\n` +
+             `DROP POLICY IF EXISTS "Allow public access to users" ON public.users;\n` +
              `CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);\n` +
+             `DROP POLICY IF EXISTS "Allow public access to passwords" ON public.passwords;\n` +
              `CREATE POLICY "Allow public access to passwords" ON public.passwords FOR ALL USING (true);\n` +
+             `DROP POLICY IF EXISTS "Allow public access to foods" ON public.foods;\n` +
              `CREATE POLICY "Allow public access to foods" ON public.foods FOR ALL USING (true);\n` +
+             `DROP POLICY IF EXISTS "Allow public access to orders" ON public.orders;\n` +
              `CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);\n`
       }), {
         status: 200,
