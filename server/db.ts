@@ -3,14 +3,14 @@ import path from "path";
 import bcrypt from "bcryptjs";
 import { User, Food, Order } from "../src/types";
 import {
-  syncFromSupabase,
+  syncFromFirebase,
   syncCreateUser,
   syncDeleteUser,
   syncUpsertFood,
   syncDeleteFood,
   syncUpsertOrder,
-  isSupabaseConfigured
-} from "./supabase";
+  isFirebaseConfigured
+} from "./firebase";
 
 const DB_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DB_DIR, "db.json");
@@ -297,7 +297,7 @@ export const dbService = {
     data.passwords[user.id] = passwordHash;
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncCreateUser(user, passwordHash);
     
     return user;
@@ -314,7 +314,7 @@ export const dbService = {
     };
     writeDb(data);
     
-    // Sync update to Supabase
+    // Sync update to Firebase
     const passwordHash = data.passwords[id] || "";
     syncCreateUser(data.users[index], passwordHash);
     
@@ -329,7 +329,7 @@ export const dbService = {
     delete data.passwords[id];
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncDeleteUser(id);
     
     return true;
@@ -354,7 +354,7 @@ export const dbService = {
     data.foods.push(newFood);
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncUpsertFood(newFood);
     
     return newFood;
@@ -371,7 +371,7 @@ export const dbService = {
     data.foods[index] = updatedFood;
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncUpsertFood(updatedFood);
     
     return updatedFood;
@@ -384,7 +384,7 @@ export const dbService = {
     data.foods.splice(index, 1);
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncDeleteFood(id);
     
     return true;
@@ -413,7 +413,7 @@ export const dbService = {
     data.orders.push(newOrder);
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncUpsertOrder(newOrder);
     
     return newOrder;
@@ -426,7 +426,7 @@ export const dbService = {
     data.orders[index].orderStatus = status;
     writeDb(data);
     
-    // Background sync to Supabase
+    // Background sync to Firebase
     syncUpsertOrder(data.orders[index]);
     
     return data.orders[index];
@@ -434,15 +434,15 @@ export const dbService = {
 };
 
 // Initialize cloud sync on start
-export async function initSupabaseSync() {
-  if (!isSupabaseConfigured) {
-    console.log("ℹ️ Supabase environment variables not configured. Operating in local-only mode.");
+export async function initFirebaseSync() {
+  if (!isFirebaseConfigured) {
+    console.log("ℹ️ Firebase environment variables not configured. Operating in local-only mode.");
     return;
   }
 
-  console.log("🔄 Starting Supabase cloud synchronization...");
+  console.log("🔄 Starting Firebase cloud synchronization...");
   try {
-    const syncResult = await syncFromSupabase();
+    const syncResult = await syncFromFirebase();
     if (syncResult.success) {
       const data = readDb();
       let modified = false;
@@ -467,36 +467,36 @@ export async function initSupabaseSync() {
       const seeded = seedDefaultData(data);
       writeDb(seeded);
 
-      // Seed Supabase with defaults if it was completely empty
+      // Seed Firebase with defaults if it was completely empty
       if (!syncResult.foods || syncResult.foods.length === 0) {
-        console.log("Seeding default foods to Supabase...");
+        console.log("Seeding default foods to Firebase...");
         for (const food of seeded.foods) {
           await syncUpsertFood(food);
         }
       }
       if (!syncResult.users || syncResult.users.length === 0) {
-        console.log("Seeding default users to Supabase...");
+        console.log("Seeding default users to Firebase...");
         for (const user of seeded.users) {
           await syncCreateUser(user, seeded.passwords[user.id]);
         }
       }
       if (!syncResult.orders || syncResult.orders.length === 0) {
-        console.log("Seeding default orders to Supabase...");
+        console.log("Seeding default orders to Firebase...");
         for (const order of seeded.orders) {
           await syncUpsertOrder(order);
         }
       }
 
-      console.log("✅ Supabase cloud-sync initialization completed successfully! Local cache updated.");
+      console.log("✅ Firebase cloud-sync initialization completed successfully! Local cache updated.");
     } else {
-      console.warn("⚠️ Supabase sync skipped or failed. Operating in local-only mode.");
+      console.warn("⚠️ Firebase sync skipped or failed. Operating in local-only mode.");
     }
   } catch (err: any) {
-    console.error("❌ Exception during Supabase startup sync:", err.message);
+    console.error("❌ Exception during Firebase startup sync:", err.message);
   }
 }
 
 // Trigger initial synchronization
-initSupabaseSync().catch(err => {
-  console.error("Unhandled error in initSupabaseSync:", err);
+initFirebaseSync().catch(err => {
+  console.error("Unhandled error in initFirebaseSync:", err);
 });

@@ -25,6 +25,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onCartClick }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
+  const [clickCount, setClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastClickTime < 1500) {
+      const newCount = clickCount + 1;
+      setClickCount(newCount);
+      if (newCount >= 5) {
+        e.preventDefault();
+        setClickCount(0);
+        document.dispatchEvent(new CustomEvent("open-secret-gate"));
+      }
+    } else {
+      setClickCount(1);
+    }
+    setLastClickTime(now);
+  };
+
   const handleLogout = async () => {
     await logout();
     setMobileMenuOpen(false);
@@ -40,7 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onCartClick }) => {
     <nav className="sticky top-0 z-40 backdrop-blur-md bg-zinc-950/80 border-b border-zinc-900 text-zinc-100 px-4 py-3 md:px-8">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 group">
+        <Link to="/" onClick={handleLogoClick} className="flex items-center gap-2 group select-none">
           <div className="bg-gradient-to-tr from-orange-600 to-red-600 p-2 rounded-xl text-white shadow-lg shadow-orange-600/20 group-hover:scale-105 transition-transform">
             <UtensilsCrossed className="w-5 h-5" />
           </div>

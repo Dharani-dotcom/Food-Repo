@@ -1,14 +1,36 @@
-import React from "react";
+import React, { useState } from "react";
 import { UtensilsCrossed, Phone, MapPin, Mail, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export const Footer: React.FC = () => {
+  const [clickCount, setClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+
+  const handleBrandClick = () => {
+    const now = Date.now();
+    if (now - lastClickTime < 1500) {
+      const newCount = clickCount + 1;
+      setClickCount(newCount);
+      if (newCount >= 5) {
+        setClickCount(0);
+        document.dispatchEvent(new CustomEvent("open-secret-gate"));
+      }
+    } else {
+      setClickCount(1);
+    }
+    setLastClickTime(now);
+  };
+
   return (
     <footer className="bg-zinc-950 border-t border-zinc-900 text-zinc-400 py-12 px-4 md:px-8">
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
         {/* Branding */}
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
+          <div 
+            onClick={handleBrandClick}
+            className="flex items-center gap-2 select-none active:scale-[0.99] transition-transform cursor-default"
+            title="Masala Kitchen branding"
+          >
             <div className="bg-gradient-to-tr from-orange-600 to-red-600 p-2 rounded-xl text-white shadow-lg">
               <UtensilsCrossed className="w-5 h-5" />
             </div>
@@ -31,9 +53,6 @@ export const Footer: React.FC = () => {
             </li>
             <li>
               <Link to="/profile" className="hover:text-orange-500 transition-colors">My Profile</Link>
-            </li>
-            <li>
-              <Link to="/admin-secret" className="hover:text-orange-500/80 text-orange-500/60 font-semibold transition-colors">Admin Secret Page</Link>
             </li>
           </ul>
         </div>

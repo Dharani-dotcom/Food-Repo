@@ -1,11 +1,11 @@
-import { supabase, mapFoodFromDb, mapOrderFromDb, isSupabaseConfigured } from "./supabaseClient";
+import { isFirebaseConfigured, firebaseFallback } from "./firebaseClient";
 
 /**
  * Custom fetch wrapper that automatically appends the JWT authorization token
  * from localStorage to the headers of any outgoing API request.
  * If the API request fails or returns a 404 (common on static platforms like Vercel
  * where the backend Express server doesn't run), it seamlessly falls back to querying
- * Supabase directly on the client side.
+ * Firebase Firestore directly on the client side.
  */
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -29,25 +29,25 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
     const isHtml = contentType.toLowerCase().includes("text/html");
 
     // If backend returns a failure, route not found (404), or returned HTML for an API route (SPA redirect)
-    if ((!response.ok || response.status === 404 || isHtml) && isApiCall && supabase) {
-      const fallback = await trySupabaseFallback(urlStr, requestInit);
+    if ((!response.ok || response.status === 404 || isHtml) && isApiCall && isFirebaseConfigured) {
+      const fallback = await tryFirebaseFallback(urlStr, requestInit);
       if (fallback) {
-        console.log(`✨ Self-healed API call [${urlStr}] using client-side Supabase client.`);
+        console.log(`✨ Self-healed API call [${urlStr}] using client-side Firebase client.`);
         return fallback;
       }
     }
 
     // Try a test parse if it's an API call to make sure we don't return HTML/text to a JSON parser
-    if (isApiCall && supabase) {
+    if (isApiCall && isFirebaseConfigured) {
       try {
         const cloned = response.clone();
         const text = await cloned.text();
         const trimmed = text.trim();
         const isNotJson = !trimmed.startsWith("{") && !trimmed.startsWith("[");
         if (isNotJson || trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
-          const fallback = await trySupabaseFallback(urlStr, requestInit);
+          const fallback = await tryFirebaseFallback(urlStr, requestInit);
           if (fallback) {
-            console.log(`✨ Self-healed HTML/text redirect for [${urlStr}] using client-side Supabase.`);
+            console.log(`✨ Self-healed HTML/text redirect for [${urlStr}] using client-side Firebase.`);
             return fallback;
           }
         }
@@ -58,11 +58,11 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
     return response;
   } catch (err) {
-    console.warn(`⚠️ API fetch failed for [${urlStr}]. Attempting client-side Supabase self-healing...`, err);
-    if (isApiCall && supabase) {
-      const fallback = await trySupabaseFallback(urlStr, requestInit);
+    console.warn(`⚠️ API fetch failed for [${urlStr}]. Attempting client-side Firebase self-healing...`, err);
+    if (isApiCall && isFirebaseConfigured) {
+      const fallback = await tryFirebaseFallback(urlStr, requestInit);
       if (fallback) {
-        console.log(`✨ Recovered failed API call [${urlStr}] using client-side Supabase client.`);
+        console.log(`✨ Recovered failed API call [${urlStr}] using client-side Firebase client.`);
         return fallback;
       }
     }
@@ -154,72 +154,23 @@ const defaultFoods = [
 ];
 
 /**
- * Intercepts /api/ calls and runs them directly against Supabase.
+ * Intercepts /api/ calls and runs them directly against Firebase Firestore.
  */
-async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<Response | null> {
+async function tryFirebaseFallback(urlStr: string, init?: RequestInit): Promise<Response | null> {
   try {
     // 1. GET /api/supabase-status
     if (urlStr.endsWith("/api/supabase-status") || urlStr.endsWith("api/supabase-status")) {
       return new Response(JSON.stringify({
-        configured: isSupabaseConfigured,
-        connected: isSupabaseConfigured,
-        error: isSupabaseConfigured ? "" : "Supabase keys not configured in environment.",
-        tables: ["users", "passwords", "foods", "orders"],
-        sql: `-- COPY & PASTE THIS SQL IN YOUR SUPABASE SQL EDITOR TO CREATE TABLES\n\n` + 
-             `-- 1. Create Users Table\n` +
-             `CREATE TABLE IF NOT EXISTS public.users (\n` +
-             `  id TEXT PRIMARY KEY,\n` +
-             `  name TEXT NOT NULL,\n` +
-             `  email TEXT UNIQUE NOT NULL,\n` +
-             `  phone TEXT,\n` +
-             `  address TEXT,\n` +
-             `  role TEXT DEFAULT 'User',\n` +
-             `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
-             `);\n\n` +
-             `-- 2. Create Passwords Table\n` +
-             `CREATE TABLE IF NOT EXISTS public.passwords (\n` +
-             `  user_id TEXT PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,\n` +
-             `  password_hash TEXT NOT NULL\n` +
-             `);\n\n` +
-             `-- 3. Create Foods Table\n` +
-             `CREATE TABLE IF NOT EXISTS public.foods (\n` +
-             `  id TEXT PRIMARY KEY,\n` +
-             `  name TEXT NOT NULL,\n` +
-             `  description TEXT,\n` +
-             `  price NUMERIC NOT NULL,\n` +
-             `  category TEXT NOT NULL,\n` +
-             `  image TEXT,\n` +
-             `  available BOOLEAN DEFAULT TRUE,\n` +
-             `  rating NUMERIC DEFAULT 4.5,\n` +
-             `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
-             `);\n\n` +
-             `-- 4. Create Orders Table\n` +
-             `CREATE TABLE IF NOT EXISTS public.orders (\n` +
-             `  id TEXT PRIMARY KEY,\n` +
-             `  user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,\n` +
-             `  user_name TEXT,\n` +
-             `  user_email TEXT,\n` +
-             `  food_items JSONB NOT NULL,\n` +
-             `  total_quantity INTEGER NOT NULL,\n` +
-             `  total_price NUMERIC NOT NULL,\n` +
-             `  delivery_address TEXT,\n` +
-             `  phone TEXT,\n` +
-             `  payment_status TEXT DEFAULT 'Pending',\n` +
-             `  order_status TEXT DEFAULT 'Pending',\n` +
-             `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
-             `);\n\n` +
-             `ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;\n` +
-             `ALTER TABLE public.passwords ENABLE ROW LEVEL SECURITY;\n` +
-             `ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;\n` +
-             `ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;\n\n` +
-             `DROP POLICY IF EXISTS "Allow public access to users" ON public.users;\n` +
-             `CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);\n` +
-             `DROP POLICY IF EXISTS "Allow public access to passwords" ON public.passwords;\n` +
-             `CREATE POLICY "Allow public access to passwords" ON public.passwords FOR ALL USING (true);\n` +
-             `DROP POLICY IF EXISTS "Allow public access to foods" ON public.foods;\n` +
-             `CREATE POLICY "Allow public access to foods" ON public.foods FOR ALL USING (true);\n` +
-             `DROP POLICY IF EXISTS "Allow public access to orders" ON public.orders;\n` +
-             `CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);\n`
+        configured: isFirebaseConfigured,
+        connected: isFirebaseConfigured,
+        error: isFirebaseConfigured ? "" : "Firebase config not found.",
+        tables: {
+          users: true,
+          passwords: true,
+          foods: true,
+          orders: true
+        },
+        sql: ""
       }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -228,39 +179,27 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
 
     // 2. GET /api/foods
     if ((urlStr.endsWith("/api/foods") || urlStr.endsWith("api/foods")) && (!init?.method || init.method === "GET")) {
-      let { data, error } = await supabase!.from("foods").select("*");
-      if (error) throw error;
+      let data = await firebaseFallback.getFoods();
       
       // If table is empty, auto-seed it on the client-side
       if (!data || data.length === 0) {
-        console.log("✨ Supabase food table is empty. Auto-seeding default delicious foodstuffs directly on client-side...");
-        const dbItems = defaultFoods.map(item => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          price: item.price,
-          category: item.category,
-          image: item.image,
-          available: item.available,
-          rating: item.rating
-        }));
-        
-        const { error: insertError } = await supabase!.from("foods").insert(dbItems);
-        if (!insertError) {
-          const { data: refreshedData } = await supabase!.from("foods").select("*");
-          if (refreshedData && refreshedData.length > 0) {
-            data = refreshedData;
-          } else {
-            data = dbItems;
-          }
-        } else {
-          console.warn("Could not insert seed foods, returning default items statically:", insertError);
-          data = dbItems;
+        console.log("✨ Firestore food collection is empty. Auto-seeding default delicious foodstuffs directly on client-side...");
+        for (const item of defaultFoods) {
+          await firebaseFallback.saveFood(item.id, {
+            name: item.name,
+            description: item.description,
+            price: item.price,
+            category: item.category,
+            image: item.image,
+            available: item.available,
+            rating: item.rating,
+            createdAt: new Date().toISOString()
+          });
         }
+        data = await firebaseFallback.getFoods();
       }
 
-      const mappedFoods = (data || []).map(mapFoodFromDb);
-      return new Response(JSON.stringify(mappedFoods), {
+      return new Response(JSON.stringify(data), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -271,7 +210,6 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
       const body = JSON.parse(init.body as string);
       const foodId = "food_" + Math.random().toString(36).substring(2, 11);
       const newFood = {
-        id: foodId,
         name: body.name,
         description: body.description || "",
         price: Number(body.price),
@@ -279,11 +217,10 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
         image: body.image || "",
         available: body.available !== false,
         rating: Number(body.rating || 5.0),
-        created_at: new Date().toISOString()
+        createdAt: new Date().toISOString()
       };
-      const { error } = await supabase!.from("foods").insert(newFood);
-      if (error) throw error;
-      return new Response(JSON.stringify(mapFoodFromDb(newFood)), {
+      await firebaseFallback.saveFood(foodId, newFood);
+      return new Response(JSON.stringify({ id: foodId, ...newFood }), {
         status: 201,
         headers: { "Content-Type": "application/json" }
       });
@@ -303,8 +240,7 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
         available: body.available !== false,
         rating: Number(body.rating || 5.0)
       };
-      const { error } = await supabase!.from("foods").update(updatedFields).eq("id", id);
-      if (error) throw error;
+      await firebaseFallback.saveFood(id, updatedFields);
       return new Response(JSON.stringify({ success: true, ...updatedFields, id }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -315,8 +251,7 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
     const delFoodIdMatch = urlStr.match(/\/api\/foods\/([^/]+)$/);
     if (delFoodIdMatch && init?.method === "DELETE") {
       const id = delFoodIdMatch[1];
-      const { error } = await supabase!.from("foods").delete().eq("id", id);
-      if (error) throw error;
+      await firebaseFallback.deleteFood(id);
       return new Response(JSON.stringify({ success: true, id }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -327,9 +262,8 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
     const foodIdMatch = urlStr.match(/\/api\/foods\/([^/]+)$/);
     if (foodIdMatch && (!init?.method || init.method === "GET")) {
       const id = foodIdMatch[1];
-      const { data, error } = await supabase!.from("foods").select("*").eq("id", id).single();
-      if (error) throw error;
-      return new Response(JSON.stringify(mapFoodFromDb(data)), {
+      const food = await firebaseFallback.getFoodById(id);
+      return new Response(JSON.stringify(food), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -337,12 +271,10 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
 
     // 7. GET /api/orders
     if ((urlStr.endsWith("/api/orders") || urlStr.endsWith("api/orders")) && (!init?.method || init.method === "GET")) {
-      const { data, error } = await supabase!.from("orders").select("*");
-      if (error) throw error;
-      const mappedOrders = (data || []).map(mapOrderFromDb);
+      const data = await firebaseFallback.getOrders();
       // Sort newest first
-      mappedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return new Response(JSON.stringify(mappedOrders), {
+      data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return new Response(JSON.stringify(data), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -353,8 +285,7 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
     if (orderStatusMatch && init?.method === "PUT" && init.body) {
       const id = orderStatusMatch[1];
       const body = JSON.parse(init.body as string);
-      const { error } = await supabase!.from("orders").update({ order_status: body.status }).eq("id", id);
-      if (error) throw error;
+      await firebaseFallback.updateOrderStatus(id, body.status);
       return new Response(JSON.stringify({ success: true, orderStatus: body.status }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -365,9 +296,8 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
     const orderIdMatch = urlStr.match(/\/api\/orders\/([^/]+)$/);
     if (orderIdMatch && (!init?.method || init.method === "GET")) {
       const id = orderIdMatch[1];
-      const { data, error } = await supabase!.from("orders").select("*").eq("id", id).single();
-      if (error) throw error;
-      return new Response(JSON.stringify(mapOrderFromDb(data)), {
+      const order = await firebaseFallback.getOrderById(id);
+      return new Response(JSON.stringify(order), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -394,24 +324,22 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
       });
 
       const newOrder = {
-        id: orderId,
-        user_id: "user_guest_" + Math.random().toString(36).substring(2, 11),
-        user_name: body.name || "Guest Customer",
-        user_email: body.email || "guest@masalakitchen.in",
-        food_items: mappedItems,
-        total_quantity: totalQuantity,
-        total_price: Number(totalPrice.toFixed(2)),
-        delivery_address: body.deliveryAddress || "",
+        userId: "user_guest_" + Math.random().toString(36).substring(2, 11),
+        userName: body.name || "Guest Customer",
+        userEmail: body.email || "guest@masalakitchen.in",
+        foodItems: mappedItems,
+        totalQuantity: totalQuantity,
+        totalPrice: Number(totalPrice.toFixed(2)),
+        deliveryAddress: body.deliveryAddress || "",
         phone: body.phone || "",
-        payment_status: "Pending",
-        order_status: "Pending",
-        created_at: new Date().toISOString()
+        paymentStatus: "Pending",
+        orderStatus: "Pending",
+        createdAt: new Date().toISOString()
       };
 
-      const { error } = await supabase!.from("orders").insert(newOrder);
-      if (error) throw error;
+      await firebaseFallback.saveOrder(orderId, newOrder);
 
-      return new Response(JSON.stringify(mapOrderFromDb(newOrder)), {
+      return new Response(JSON.stringify({ id: orderId, ...newOrder }), {
         status: 201,
         headers: { "Content-Type": "application/json" }
       });
@@ -419,18 +347,8 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
 
     // 11. GET /api/users
     if ((urlStr.endsWith("/api/users") || urlStr.endsWith("api/users")) && (!init?.method || init.method === "GET")) {
-      const { data, error } = await supabase!.from("users").select("*");
-      if (error) throw error;
-      const mappedUsers = (data || []).map((dbUser: any) => ({
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        phone: dbUser.phone || "",
-        address: dbUser.address || "",
-        role: dbUser.role || "User",
-        createdAt: dbUser.created_at || new Date().toISOString()
-      }));
-      return new Response(JSON.stringify(mappedUsers), {
+      const data = await firebaseFallback.getUsers();
+      return new Response(JSON.stringify(data), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -440,8 +358,7 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
     const delUserMatch = urlStr.match(/\/api\/users\/([^/]+)$/);
     if (delUserMatch && init?.method === "DELETE") {
       const id = delUserMatch[1];
-      const { error } = await supabase!.from("users").delete().eq("id", id);
-      if (error) throw error;
+      await firebaseFallback.deleteUser(id);
       return new Response(JSON.stringify({ success: true, id }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -450,7 +367,7 @@ async function trySupabaseFallback(urlStr: string, init?: RequestInit): Promise<
 
     return null;
   } catch (fallbackError) {
-    console.error("Client fallback to Supabase failed:", fallbackError);
+    console.error("Client fallback to Firebase failed:", fallbackError);
     return null;
   }
 }

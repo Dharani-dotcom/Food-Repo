@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Food, Order, OrderStatus } from "../types";
 import { useToast } from "../context/ToastContext";
 import { apiFetch } from "../utils/api";
-import { supabase, isSupabaseConfigured } from "../utils/supabaseClient";
+import { isFirebaseConfigured } from "../utils/firebaseClient";
 import {
   Users,
   ShoppingBag,
@@ -40,7 +40,7 @@ export const AdminSecretPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [dbStatus, setDbStatus] = useState({
-    configured: isSupabaseConfigured,
+    configured: isFirebaseConfigured,
     connected: false,
     error: ""
   });
@@ -86,18 +86,27 @@ export const AdminSecretPage: React.FC = () => {
       }
 
       // 3. Test Database Connectivity
-      if (supabase) {
-        const { error } = await supabase.from("orders").select("id").limit(1);
-        setDbStatus({
-          configured: true,
-          connected: !error,
-          error: error ? error.message : ""
-        });
+      if (isFirebaseConfigured) {
+        try {
+          const { firebaseFallback } = await import("../utils/firebaseClient");
+          await firebaseFallback.getOrders();
+          setDbStatus({
+            configured: true,
+            connected: true,
+            error: ""
+          });
+        } catch (err: any) {
+          setDbStatus({
+            configured: true,
+            connected: false,
+            error: err.message || "Failed to connect to Firebase Firestore."
+          });
+        }
       } else {
         setDbStatus({
           configured: false,
           connected: false,
-          error: "Supabase not configured in client env keys."
+          error: "Firebase not configured in client env keys."
         });
       }
     } catch (err: any) {
@@ -132,24 +141,7 @@ export const AdminSecretPage: React.FC = () => {
           prev.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o))
         );
       } else {
-        // Fallback directly to Supabase client if the network mock is disconnected
-        if (supabase) {
-          const { error } = await supabase
-            .from("orders")
-            .update({ order_status: newStatus })
-            .eq("id", orderId);
-
-          if (!error) {
-            showToast(`Order status synced directly to Supabase: ${newStatus}`, "success");
-            setOrders((prev) =>
-              prev.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o))
-            );
-          } else {
-            throw error;
-          }
-        } else {
-          showToast("Failed to update status. Please configure database.", "error");
-        }
+        showToast("Failed to update order status.", "error");
       }
     } catch (err: any) {
       console.error(err);
@@ -331,61 +323,7 @@ export const AdminSecretPage: React.FC = () => {
     }
   };
 
-  const sqlScript = `-- COPY & PASTE THIS SQL IN YOUR SUPABASE SQL EDITOR TO CREATE ALL TABLES\n\n` + 
-    `-- 1. Create Users Table\n` +
-    `CREATE TABLE IF NOT EXISTS public.users (\n` +
-    `  id TEXT PRIMARY KEY,\n` +
-    `  name TEXT NOT NULL,\n` +
-    `  email TEXT UNIQUE NOT NULL,\n` +
-    `  phone TEXT,\n` +
-    `  address TEXT,\n` +
-    `  role TEXT DEFAULT 'User',\n` +
-    `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
-    `);\n\n` +
-    `-- 2. Create Passwords Table\n` +
-    `CREATE TABLE IF NOT EXISTS public.passwords (\n` +
-    `  user_id TEXT PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,\n` +
-    `  password_hash TEXT NOT NULL\n` +
-    `);\n\n` +
-    `-- 3. Create Foods Table\n` +
-    `CREATE TABLE IF NOT EXISTS public.foods (\n` +
-    `  id TEXT PRIMARY KEY,\n` +
-    `  name TEXT NOT NULL,\n` +
-    `  description TEXT,\n` +
-    `  price NUMERIC NOT NULL,\n` +
-    `  category TEXT NOT NULL,\n` +
-    `  image TEXT,\n` +
-    `  available BOOLEAN DEFAULT TRUE,\n` +
-    `  rating NUMERIC DEFAULT 4.5,\n` +
-    `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
-    `);\n\n` +
-    `-- 4. Create Orders Table\n` +
-    `CREATE TABLE IF NOT EXISTS public.orders (\n` +
-    `  id TEXT PRIMARY KEY,\n` +
-    `  user_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,\n` +
-    `  user_name TEXT,\n` +
-    `  user_email TEXT,\n` +
-    `  food_items JSONB NOT NULL,\n` +
-    `  total_quantity INTEGER NOT NULL,\n` +
-    `  total_price NUMERIC NOT NULL,\n` +
-    `  delivery_address TEXT,\n` +
-    `  phone TEXT,\n` +
-    `  payment_status TEXT DEFAULT 'Pending',\n` +
-    `  order_status TEXT DEFAULT 'Pending',\n` +
-    `  created_at TIMESTAMPTZ DEFAULT NOW()\n` +
-    `);\n\n` +
-    `ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;\n` +
-    `ALTER TABLE public.passwords ENABLE ROW LEVEL SECURITY;\n` +
-    `ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;\n` +
-    `ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;\n\n` +
-    `DROP POLICY IF EXISTS "Allow public access to users" ON public.users;\n` +
-    `CREATE POLICY "Allow public access to users" ON public.users FOR ALL USING (true);\n` +
-    `DROP POLICY IF EXISTS "Allow public access to passwords" ON public.passwords;\n` +
-    `CREATE POLICY "Allow public access to passwords" ON public.passwords FOR ALL USING (true);\n` +
-    `DROP POLICY IF EXISTS "Allow public access to foods" ON public.foods;\n` +
-    `CREATE POLICY "Allow public access to foods" ON public.foods FOR ALL USING (true);\n` +
-    `DROP POLICY IF EXISTS "Allow public access to orders" ON public.orders;\n` +
-    `CREATE POLICY "Allow public access to orders" ON public.orders FOR ALL USING (true);`;
+  const sqlScript = "";
 
   return (
     <div className="bg-zinc-950 text-zinc-100 min-h-screen py-10 px-4 md:px-8 font-sans">
@@ -396,13 +334,13 @@ export const AdminSecretPage: React.FC = () => {
           <div>
             <div className="inline-flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold px-3 py-1 rounded-full mb-3">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              <span>Full-Stack Supabase Control Panel & Bypass</span>
+              <span>Full-Stack Firebase Control Panel & Bypass</span>
             </div>
             <h1 className="font-sans font-extrabold text-3xl text-white tracking-tight leading-none">
               Secret Operator Hub <span className="text-zinc-600 text-xl font-normal">(Client-Direct)</span>
             </h1>
             <p className="text-zinc-500 text-xs mt-1.5">
-              Perfect for Vercel deployment. Full control over Menu, Orders, Customers, and database configurations.
+              Perfect for stateless container environments. Full control over Menu, Orders, Customers, and database configurations.
             </p>
           </div>
 
@@ -412,14 +350,14 @@ export const AdminSecretPage: React.FC = () => {
               <Database className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-grow">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Supabase Backend</p>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Firebase Backend</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <p className="text-xs font-bold text-white">
-                  {dbStatus.connected ? "Connected & Live" : "Unconnected / Missing Tables"}
+                  {dbStatus.connected ? "Connected & Live" : "Unconnected / Configuring"}
                 </p>
               </div>
               <p className="text-[10px] text-zinc-400 mt-1 truncate" title={dbStatus.error}>
-                {dbStatus.connected ? "Real-time sync active" : dbStatus.error || "Requires SQL copy-paste setup."}
+                {dbStatus.connected ? "Real-time sync active" : dbStatus.error || "Awaiting database initialization."}
               </p>
             </div>
             <button
@@ -854,43 +792,26 @@ export const AdminSecretPage: React.FC = () => {
                   <Database className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white">How to connect and sync your frontend to Supabase</h3>
+                  <h3 className="font-bold text-sm text-white">Connected with Firebase Firestore</h3>
                   <p className="text-xs text-zinc-400 leading-relaxed mt-1">
-                    If your food items do not appear on your menu or orders fail, you need to create the required tables and security rules inside your Supabase Project.
+                    Your application is integrated with NoSQL Firebase Cloud Firestore. Since Firestore is document-based, all collections (foods, orders, users, passwords) are automatically created on-demand as soon as the first read or write operation occurs.
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-3 pt-3">
-                <p className="text-xs font-bold text-zinc-300">Follow these 3 easy steps:</p>
-                <ol className="list-decimal pl-5 text-xs text-zinc-500 space-y-2">
+              <div className="space-y-3 pt-3 border-t border-zinc-900">
+                <p className="text-xs font-bold text-zinc-300">Why Firebase is the perfect backend:</p>
+                <ul className="list-disc pl-5 text-xs text-zinc-500 space-y-2">
                   <li>
-                    Login to your <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-orange-400 hover:underline">Supabase Console</a> and click on your project database.
+                    <strong className="text-zinc-400">Zero Maintenance</strong>: No manual table creation, schemas, migration scripts, or SQL COPY/PASTE required.
                   </li>
                   <li>
-                    On the left navigation pane, open the <strong className="text-zinc-400">SQL Editor</strong> and click "New Query".
+                    <strong className="text-zinc-400">Stateless Resilience</strong>: Secures all registration logins, menu edits, and food orders in real-time even when Cloud Run containers restart.
                   </li>
                   <li>
-                    Copy the complete SQL script below, paste it into the query window, and click the <strong className="text-zinc-400 font-bold">"Run"</strong> button.
+                    <strong className="text-zinc-400">Sub-second Latency</strong>: Leverages Firestore's dynamic real-time data subscription layers for instantaneous feedback.
                   </li>
-                </ol>
-              </div>
-
-              {/* SQL CARD BLOCK */}
-              <div className="space-y-2 pt-2">
-                <div className="flex justify-between items-center bg-zinc-950 px-4 py-3 rounded-t-xl border-t border-x border-zinc-900">
-                  <span className="text-[10px] font-mono font-bold text-zinc-500">MASALAKITCHEN_SCHEMA.SQL</span>
-                  <button
-                    onClick={() => copyToClipboard(sqlScript, "SQL Script")}
-                    className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border border-zinc-850 cursor-pointer"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy Script
-                  </button>
-                </div>
-                <pre className="bg-zinc-950/80 border border-zinc-900 p-4 rounded-b-xl text-[10px] font-mono text-zinc-400 overflow-x-auto max-h-96 leading-relaxed">
-                  {sqlScript}
-                </pre>
+                </ul>
               </div>
             </div>
           </div>

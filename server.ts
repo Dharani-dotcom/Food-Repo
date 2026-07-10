@@ -7,7 +7,7 @@ import cookieParser from "cookie-parser";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import { dbService } from "./server/db";
-import { getSupabaseStatus, SQL_SETUP_SCRIPT } from "./server/supabase";
+import { getFirebaseStatus } from "./server/firebase";
 import { User, Food, Order, OrderStatus } from "./src/types";
 
 // Extend Express Request interface to include user info
@@ -564,18 +564,18 @@ async function startServer() {
     res.json(users);
   });
 
-  // GET /api/supabase-status
+  // GET /api/supabase-status (Legacy name, now proxies Firebase status)
   app.get("/api/supabase-status", async (req: Request, res: Response) => {
     try {
-      const { syncFromSupabase, getSupabaseStatus, SQL_SETUP_SCRIPT } = await import("./server/supabase");
-      await syncFromSupabase();
-      const status = getSupabaseStatus();
+      const { syncFromFirebase, getFirebaseStatus } = await import("./server/firebase");
+      await syncFromFirebase();
+      const status = getFirebaseStatus();
       res.json({
         configured: status.configured,
         connected: status.connected,
         error: status.error,
-        tables: status.tablesFound,
-        sql: SQL_SETUP_SCRIPT
+        tables: status.collectionsFound,
+        sql: "" // No SQL setup is needed for Firebase Firestore!
       });
     } catch (err: any) {
       console.error("Error in /api/supabase-status:", err);

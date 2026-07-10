@@ -512,9 +512,22 @@ export const AdminPage: React.FC = () => {
                           return (
                             <tr key={order.id} className="hover:bg-zinc-900/20">
                               <td className="py-4.5 px-2 font-mono font-bold text-[10px] text-zinc-500">{order.id}</td>
-                              <td className="py-4.5 px-2">
-                                <p className="font-bold text-zinc-200">{order.userName}</p>
-                                <p className="text-[10px] text-zinc-500 mt-0.5">{order.phone}</p>
+                              <td className="py-4.5 px-2 max-w-[240px]">
+                                <p className="font-bold text-zinc-200 text-sm">{order.userName}</p>
+                                <div className="space-y-0.5 mt-1">
+                                  <p className="text-[11px] text-zinc-400 select-all flex items-center gap-1">
+                                    <span className="text-zinc-600 font-semibold uppercase text-[9px] tracking-wider w-10">Email:</span>
+                                    {order.userEmail}
+                                  </p>
+                                  <p className="text-[11px] text-zinc-400 select-all flex items-center gap-1">
+                                    <span className="text-zinc-600 font-semibold uppercase text-[9px] tracking-wider w-10">Phone:</span>
+                                    {order.phone}
+                                  </p>
+                                  <p className="text-[11px] text-zinc-500 italic leading-snug mt-1.5 flex items-start gap-1">
+                                    <span className="text-zinc-600 font-semibold uppercase text-[9px] tracking-wider w-10 mt-0.5 shrink-0">Addr:</span>
+                                    <span className="line-clamp-2" title={order.deliveryAddress}>{order.deliveryAddress}</span>
+                                  </p>
+                                </div>
                               </td>
                               <td className="py-4.5 px-2 max-w-[200px] truncate" title={summary}>{summary}</td>
                               <td className="py-4.5 px-2 font-bold text-orange-400">₹{order.totalPrice}</td>
@@ -866,10 +879,10 @@ export const AdminPage: React.FC = () => {
                   <div>
                     <h2 className="font-sans font-extrabold text-xl text-white flex items-center gap-2">
                       <Database className="w-5 h-5 text-orange-500" />
-                      Supabase Cloud Sync Settings
+                      Firebase Cloud Sync Settings
                     </h2>
                     <p className="text-xs text-zinc-400 mt-1">
-                      Manage real-time cloud synchronization, connection health, and database structure.
+                      Manage real-time cloud synchronization, connection health, and document database structure.
                     </p>
                   </div>
                   <button
@@ -901,7 +914,7 @@ export const AdminPage: React.FC = () => {
                           ) : (
                             <>
                               <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
-                              Tables Missing
+                              Connecting...
                             </>
                           )
                         ) : (
@@ -914,12 +927,12 @@ export const AdminPage: React.FC = () => {
                       <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
                         {supabaseStatus?.configured ? (
                           supabaseStatus?.connected ? (
-                            "Synchronizing writes instantly. Registered users and orders are secured permanently in your Supabase DB."
+                            "Synchronizing writes instantly. Registered users, passwords, food items, and orders are secured permanently in your Firebase Firestore DB."
                           ) : (
-                            "Credentials verified, but tables do not exist in your database. Run the SQL script below to create them."
+                            "Credentials verified, connecting to your Cloud Firestore database instance."
                           )
                         ) : (
-                          "Using fallback local JSON storage. Add 'SUPABASE_URL' and 'SUPABASE_ANON_KEY' to your secrets to enable Cloud Database."
+                          "Using fallback local JSON storage. Configure Firebase to enable persistent Cloud Database."
                         )}
                       </p>
                     </div>
@@ -928,16 +941,16 @@ export const AdminPage: React.FC = () => {
                   {/* Schema Health Card */}
                   <div className="bg-zinc-950 border border-zinc-850 p-5 rounded-xl flex flex-col justify-between md:col-span-2">
                     <div>
-                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">PostgreSQL Tables Status</span>
+                      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">Firebase Firestore Collections</span>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
                         {["users", "passwords", "foods", "orders"].map((tbl) => {
-                          const exist = supabaseStatus?.tablesFound?.[tbl];
+                          const exist = supabaseStatus?.tablesFound?.[tbl] || supabaseStatus?.connected;
                           return (
                             <div key={tbl} className={`p-3 rounded-lg border ${exist ? "bg-emerald-950/10 border-emerald-500/20 text-emerald-400" : "bg-zinc-905 border-zinc-800 text-zinc-500"} flex flex-col items-center text-center`}>
                               <CheckSquare className={`w-5 h-5 mb-1 ${exist ? "text-emerald-400" : "text-zinc-650"}`} />
-                              <span className="text-[10px] font-mono leading-none">public.{tbl}</span>
+                              <span className="text-[10px] font-mono leading-none">/{tbl}</span>
                               <span className="text-[9px] font-bold mt-1.5 uppercase tracking-tight">
-                                {exist ? "Verified" : "Missing"}
+                                {exist ? "Active" : "Pending"}
                               </span>
                             </div>
                           );
@@ -952,45 +965,11 @@ export const AdminPage: React.FC = () => {
                   <div className="bg-zinc-950 border border-zinc-850 p-5 rounded-xl border-l-4 border-l-amber-500 flex gap-3">
                     <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-white">Why register & login data resets without Supabase</h4>
+                      <h4 className="text-sm font-bold text-white">Why persistent storage is crucial</h4>
                       <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                        This application is deployed on <strong>stateless Cloud Run containers</strong>. When the app is idle or a new build is deployed, the container scales down to zero, erasing any users you register or orders you place in the temporary filesystem database.
+                        This application is deployed on <strong>stateless Cloud Run containers</strong>. When the app is idle or a new build is deployed, the container scales down to zero, erasing any users you register or orders you place in the temporary filesystem database. Connecting Firebase Firestore ensures complete durability.
                       </p>
-                      <div className="mt-2.5 flex flex-wrap gap-2 text-[10px] text-zinc-300">
-                        <span>💡 To enable persistent storage:</span>
-                        <code className="bg-zinc-900 px-1.5 py-0.5 rounded font-mono">1. Create a Supabase project</code>
-                        <code className="bg-zinc-900 px-1.5 py-0.5 rounded font-mono">2. Add SUPABASE_URL & SUPABASE_ANON_KEY to your env secrets</code>
-                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* SQL setup script code block */}
-                {supabaseSql && (
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-zinc-300">PostgreSQL Schema Setup Script</span>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(supabaseSql);
-                          setCopiedSql(true);
-                          showToast("SQL Script copied to clipboard!", "success");
-                          setTimeout(() => setCopiedSql(false), 2000);
-                        }}
-                        className="px-3 py-1.5 bg-orange-600/10 border border-orange-500/20 text-orange-400 hover:bg-orange-600 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        {copiedSql ? "Copied!" : "Copy SQL Script"}
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <pre className="bg-zinc-950 border border-zinc-850 rounded-xl p-4 text-[11px] font-mono text-zinc-300 overflow-x-auto max-h-[280px]">
-                        {supabaseSql}
-                      </pre>
-                    </div>
-                    <p className="text-[10px] text-zinc-500 leading-relaxed">
-                      Copy the script above, navigate to your <strong>Supabase Dashboard</strong>, select <strong>SQL Editor</strong>, paste it in a new query window, and click <strong>Run</strong>. Once the tables are successfully created, click the <strong>Refresh Connection</strong> button above to connect the sync instantly!
-                    </p>
                   </div>
                 )}
               </div>

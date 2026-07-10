@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
@@ -6,6 +6,7 @@ import { ToastProvider } from "./context/ToastContext";
 import { Navbar } from "./components/Navbar";
 import { CartDrawer } from "./components/CartDrawer";
 import { Footer } from "./components/Footer";
+import { SecretAdminGateway } from "./components/SecretAdminGateway";
 
 // Pages
 import { MenuPage } from "./pages/MenuPage";
@@ -56,6 +57,29 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 function AppLayout() {
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isSecretGateOpen, setIsSecretGateOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSecretGate = () => {
+      setIsSecretGateOpen(true);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl + Shift + A to open secret gateway
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setIsSecretGateOpen(true);
+      }
+    };
+
+    document.addEventListener("open-secret-gate", handleOpenSecretGate);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("open-secret-gate", handleOpenSecretGate);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-orange-500/20 selection:text-orange-400">
@@ -64,6 +88,9 @@ function AppLayout() {
       
       {/* Sliding Basket Drawer */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
+      {/* Secret Admin Gate Overlay */}
+      <SecretAdminGateway isOpen={isSecretGateOpen} onClose={() => setIsSecretGateOpen(false)} />
 
       {/* Main Content Router View */}
       <main className="flex-grow">
